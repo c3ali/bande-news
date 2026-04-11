@@ -236,6 +236,35 @@ ${numbered}`;
   return translations;
 }
 
+app.get("/api/debug-flare", async (req, res) => {
+  const results = { flaresolverr_url: FLARESOLVERR_URL };
+
+  try {
+    const r = await fetch(`${FLARESOLVERR_URL}/health`, { signal: AbortSignal.timeout(5000) });
+    results.health_status = r.status;
+    results.health_body = await r.text();
+  } catch (e) {
+    results.health_error = e.message;
+  }
+
+  try {
+    const r = await fetch(`${FLARESOLVERR_URL}/v1`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(30000),
+      body: JSON.stringify({ cmd: "request.get", url: "https://www.mapnews.ma/ar/actualites/politique", maxTimeout: 20000 }),
+    });
+    const d = await r.json();
+    results.solve_status = d.status;
+    results.solve_html_length = d.solution?.response?.length || 0;
+    results.solve_html_preview = (d.solution?.response || "").substring(0, 500);
+  } catch (e) {
+    results.solve_error = e.message;
+  }
+
+  res.json(results);
+});
+
 app.get("/api/categories", (req, res) => {
   const cats = Object.entries(config.categories).map(([key, val]) => ({
     key,
