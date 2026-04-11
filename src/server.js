@@ -2,7 +2,10 @@ import express from "express";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
-import puppeteer from "puppeteer";
+import puppeteerExtra from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+
+puppeteerExtra.use(StealthPlugin());
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -123,9 +126,9 @@ let browserInstance = null;
 
 async function getBrowser() {
   if (!browserInstance || !browserInstance.isConnected()) {
-    browserInstance = await puppeteer.launch({
+    browserInstance = await puppeteerExtra.launch({
       headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"],
     });
   }
   return browserInstance;
@@ -135,11 +138,20 @@ async function fetchViaBrowser(url) {
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
+    await page.setViewport({ width: 1920, height: 1080 });
     await page.setUserAgent(config.user_agent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
     await page.setExtraHTTPHeaders({ "Accept-Language": "ar,en;q=0.7,fr;q=0.5" });
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-    const html = await page.content();
-    return html;
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+    for (let i = 0; i < 10; i++) {
+      const html = await page.content();
+      if (!html.includes("challenge-platform") && !html.includes("Just a moment") && html.length > 50000) {
+        return html;
+      }
+      await sleep(2000);
+    }
+
+    return await page.content();
   } finally {
     await page.close();
   }
