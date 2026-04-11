@@ -253,6 +253,51 @@ app.get("/api/categories", (req, res) => {
   res.json({ success: true, categories: cats });
 });
 
+app.get("/api/debug-html/:catKey", async (req, res) => {
+  try {
+    const cat = config.categories[req.params.catKey];
+    if (!cat) return res.status(400).json({ error: "Unknown category" });
+    const url = `${config.base_url}${cat.url}`;
+    const headers = getRequestHeaders();
+
+    let method = "direct";
+    let directStatus = null;
+    let html = "";
+    try {
+      const r = await fetch(url, { headers, redirect: "follow" });
+      directStatus = r.status;
+      if (r.ok) {
+        const t = await r.text();
+        if (!t.includes("Just a moment")) { html = t; method = "direct"; }
+        else { method = "direct-but-cloudflare"; }
+      }
+    } catch (e) { method = "direct-failed: " + e.message; }
+
+    if (!html) {
+      method = "puppeteer";
+      html = await fetchViaBrowser(url);
+    }
+
+    const hasBlock1 = html.includes('class="block-1"');
+    const hasFieldContent = html.includes('class="field-content"');
+    const hasJustAMoment = html.includes("Just a moment");
+    const titleMatches = html.match(/<span class="field-content"><a href="\/ar\/actualites\/[^"]+">/g);
+
+    res.json({
+      method,
+      directStatus,
+      htmlLength: html.length,
+      hasBlock1,
+      hasFieldContent,
+      hasJustAMoment,
+      titleCount: titleMatches ? titleMatches.length : 0,
+      htmlPreview: html.substring(0, 2000),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/fetch-category/:catKey", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || config.default_limit || 20;
