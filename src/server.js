@@ -2,6 +2,7 @@ import express from "express";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
+import puppeteer from "puppeteer";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -118,19 +119,41 @@ function parseArticlesFromHtml(html, catKey) {
   return extractArticlesFromActualites(html);
 }
 
-async function fetchViaProxy(targetUrl) {
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-  const res = await fetch(proxyUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-  if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
-  return res.text();
+let browserInstance = null;
+
+async function getBrowser() {
+  if (!browserInstance || !browserInstance.isConnected()) {
+    browserInstance = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
+  }
+  return browserInstance;
+}
+
+async function fetchViaBrowser(url) {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setUserAgent(config.user_agent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+    await page.setExtraHTTPHeaders({ "Accept-Language": "ar,en;q=0.7,fr;q=0.5" });
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+    const html = await page.content();
+    return html;
+  } finally {
+    await page.close();
+  }
 }
 
 async function fetchPage(url, headers) {
   try {
     const res = await fetch(url, { headers, redirect: "follow" });
-    if (res.ok) return await res.text();
+    if (res.ok) {
+      const text = await res.text();
+      if (!text.includes("Just a moment")) return text;
+    }
   } catch {}
-  return fetchViaProxy(url);
+  return fetchViaBrowser(url);
 }
 
 async function fetchCategoryArticles(catKey, limit = 20) {
