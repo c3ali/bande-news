@@ -1,0 +1,17 @@
+{
+  "name": "bande-news",
+  "version": "1.0.0",
+  "description": "Collecte et validation des informations recentes de mapnews.ma",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "server": "node src/server.js",
+    "collect": "node src/index.js",
+    "test": "node --test src/test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "inquirer": "^12.6.0"
+  }
+}

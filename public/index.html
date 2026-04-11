@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>باند نيوز — Bande News</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #1a5c2a; --primary-light: #2a8a42; --primary-dark: #0f3d1a;
+      --accent: #c1272d; --bg: #f5f5f0; --card: #ffffff;
+      --text: #1a1a1a; --text-secondary: #555; --border: #ddd;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08); --radius: 8px;
+    }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    header {
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white;
+      padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15); position: sticky; top: 0; z-index: 100;
+    }
+    header .logo { display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.3rem; font-weight: 700; }
+    header h1 small { font-size: 0.72rem; font-weight: 400; opacity: 0.8; display: block; direction: ltr; }
+    .header-actions { display: flex; gap: 8px; }
+    .btn {
+      padding: 8px 18px; border: none; border-radius: var(--radius); cursor: pointer;
+      font-size: 0.85rem; font-weight: 600; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn:active { transform: scale(0.97); } .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-light); }
+    .btn-accent { background: var(--accent); color: white; }
+    .btn-accent:hover:not(:disabled) { background: #d9353b; }
+    .btn-outline { background: transparent; color: white; border: 1.5px solid rgba(255,255,255,0.5); }
+    .btn-outline:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+    .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
+    .btn-dark { background: #333; color: white; } .btn-dark:hover:not(:disabled) { background: #555; }
+    .btn-blue { background: #2563eb; color: white; } .btn-blue:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-orange { background: #ea580c; color: white; } .btn-orange:hover:not(:disabled) { background: #c2410c; }
+    main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .toolbar .spacer { flex: 1; }
+    .counter { background: var(--primary); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab {
+      padding: 10px 20px; background: #e8e8e3; border: none; border-radius: var(--radius) var(--radius) 0 0;
+      cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.15s; color: var(--text);
+    }
+    .tab:hover { background: #d8d8d3; }
+    .tab.active { background: var(--primary); color: white; }
+    .tab .tab-count { background: rgba(255,255,255,0.3); padding: 1px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 6px; }
+    .tab.active .tab-count { background: rgba(255,255,255,0.25); }
+
+    .category-panel { display: none; }
+    .category-panel.active { display: block; }
+
+    .card {
+      background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+      overflow: hidden; margin-bottom: 6px; transition: all 0.15s; border: 2px solid transparent;
+    }
+    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+    .card.selected { border-color: var(--primary); background: #f0faf3; }
+    .card-header { display: flex; align-items: flex-start; padding: 10px 14px; gap: 10px; }
+    .card-checkbox { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; margin-top: 2px; flex-shrink: 0; }
+    .card-body { flex: 1; min-width: 0; }
+    .card-title { font-size: 0.95rem; line-height: 1.6; cursor: pointer; word-wrap: break-word; }
+    .card-title[contenteditable="true"] { outline: none; background: #fff8e1; padding: 4px 8px; border-radius: 4px; border: 1px dashed #ccc; }
+    .card-date { font-size: 0.75rem; color: #888; direction: ltr; text-align: right; margin-top: 2px; }
+    .card-actions { display: flex; gap: 3px; flex-shrink: 0; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; visibility: hidden; transition: all 0.2s;
+    }
+    .modal-overlay.active { opacity: 1; visibility: visible; }
+    .modal {
+      background: white; border-radius: 12px; padding: 24px; width: 90%;
+      max-width: 900px; max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3); transform: translateY(20px); transition: transform 0.2s;
+    }
+    .modal-overlay.active .modal { transform: translateY(0); }
+    .modal h2 { font-size: 1.15rem; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+
+    .output-area {
+      width: 100%; min-height: 300px; font-family: 'Consolas', monospace; font-size: 0.88rem;
+      padding: 16px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: #1e1e1e; color: #d4d4d4; direction: ltr; resize: vertical;
+    }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: #333; color: white; padding: 12px 24px; border-radius: var(--radius);
+      font-size: 0.9rem; z-index: 300; transition: transform 0.3s; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+    .empty-state p { font-size: 1rem; margin-bottom: 12px; }
+    .loading-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--primary); z-index: 999; display: none; }
+    .loading-bar.active { display: block; animation: loading 1.5s ease-in-out; }
+    @keyframes loading { 0% { width: 0; } 50% { width: 70%; } 100% { width: 100%; } }
+
+    table.translate-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table.translate-table th { background: #f0f0f0; padding: 6px 8px; text-align: center; font-size: 0.8rem; }
+    table.translate-table td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+    table.translate-table textarea {
+      width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 5px;
+      font-size: 0.82rem; resize: vertical; font-family: inherit;
+    }
+    .translate-toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .translate-progress { font-size: 0.85rem; color: var(--primary); font-weight: 600; }
+
+    @media (max-width: 640px) {
+      main { padding: 12px; } header { padding: 10px 14px; }
+      .tab { padding: 8px 12px; font-size: 0.8rem; } .btn { padding: 6px 10px; font-size: 0.78rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-bar" id="loadingBar"></div>
+  <header>
+    <div class="logo">
+      <h1>باند نيوز<small>Bande News — mapnews.ma</small></h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline" onclick="loadCollectes()">📂 الأرشيف</button>
+    </div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button class="btn btn-primary" id="btnFetchAll" onclick="fetchAllCategories()">📡 جلب كل الأخبار</button>
+      <button class="btn btn-dark" id="btnSelectAll" onclick="toggleSelectAll()" disabled>✅ تحديد الكل</button>
+      <button class="btn btn-accent" id="btnSave" onclick="saveSelection()" disabled>💾 حفظ وترجمة</button>
+      <span class="spacer"></span>
+      <span class="counter" id="counter">0 عنصر</span>
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+    <div id="panels"></div>
+
+    <div class="empty-state" id="emptyState">
+      <p>اضغط على "جلب كل الأخبار" لتحميل آخر العناوين من mapnews.ma</p>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="previewModal">
+    <div class="modal">
+      <h2>📄 المعاينة النهائية</h2>
+      <textarea class="output-area" id="outputText"></textarea>
+      <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="copyOutput()">📋 نسخ</button>
+        <button class="btn btn-dark" onclick="downloadTxt()">⬇️ تحميل</button>
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('previewModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="translateModal">
+    <div class="modal" style="max-width:95%;">
+      <h2>🌍 الترجمة — AR / FR / EN</h2>
+      <div class="translate-toolbar">
+        <button class="btn btn-blue" id="btnTranslateFR" onclick="autoTranslate('fr')">🇫🇷 ترجمة فرنسي</button>
+        <button class="btn btn-orange" id="btnTranslateEN" onclick="autoTranslate('en')">🇬🇧 ترجمة إنجليزي</button>
+        <span class="spacer"></span>
+        <span class="translate-progress" id="translateProgress"></span>
+      </div>
+      <div id="translateContent"></div>
+      <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="generateDocument()">📄 إنشاء الوثيقة</button>
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('translateModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="archiveModal">
+    <div class="modal">
+      <h2>📂 الأرشيف</h2>
+      <div id="archiveList" style="max-height:400px; overflow-y:auto;"></div>
+      <div style="margin-top:14px; text-align:left;">
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('archiveModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let categoriesData = {};
+    let selectedIds = {};
+    let categoryLabels = {};
+    let activeTab = null;
+    let translating = false;
+
+    function showToast(msg) {
+      const t = document.getElementById("toast"); t.textContent = msg;
+      t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2500);
+    }
+    function showLoading() { document.getElementById("loadingBar").classList.add("active"); }
+    function hideLoading() { document.getElementById("loadingBar").classList.remove("active"); }
+
+    function updateCounter() {
+      let total = 0;
+      for (const k in selectedIds) total += selectedIds[k].size;
+      document.getElementById("counter").textContent = `${total} عنصر`;
+      document.getElementById("btnSave").disabled = total === 0;
+      let hasArticles = false;
+      for (const k in categoriesData) if (categoriesData[k]?.length) hasArticles = true;
+      document.getElementById("btnSelectAll").disabled = !hasArticles;
+    }
+
+    function buildTabs() {
+      const tabsEl = document.getElementById("tabs");
+      const panelsEl = document.getElementById("panels");
+      tabsEl.innerHTML = "";
+      panelsEl.innerHTML = "";
+
+      for (const catKey in categoriesData) {
+        const label = categoryLabels[catKey] || catKey;
+        const count = selectedIds[catKey]?.size || 0;
+
+        const tab = document.createElement("button");
+        tab.className = `tab${activeTab === catKey ? " active" : ""}`;
+        tab.innerHTML = `${label} <span class="tab-count">${count}</span>`;
+        tab.onclick = () => switchTab(catKey);
+        tabsEl.appendChild(tab);
+
+        const panel = document.createElement("div");
+        panel.className = `category-panel${activeTab === catKey ? " active" : ""}`;
+        panel.id = `panel-${catKey}`;
+        panel.innerHTML = renderCategoryCards(catKey);
+        panelsEl.appendChild(panel);
+      }
+      updateCounter();
+    }
+
+    function switchTab(catKey) { activeTab = catKey; buildTabs(); }
+
+    function renderCategoryCards(catKey) {
+      const articles = categoriesData[catKey] || [];
+      if (!articles.length) return '<div class="empty-state"><p>لا توجد مقالات</p></div>';
+      return articles.map(a => {
+        const sel = selectedIds[catKey]?.has(a.id);
+        const dateHtml = a.date ? `<div class="card-date">📅 ${a.date}</div>` : "";
+        return `<div class="card ${sel ? "selected" : ""}" data-cat="${catKey}" data-id="${a.id}">
+          <div class="card-header">
+            <input type="checkbox" class="card-checkbox" ${sel ? "checked" : ""}
+              onchange="toggleArticle('${catKey}',${a.id})" />
+            <div class="card-body">
+              <div class="card-title" id="title-${catKey}-${a.id}" dir="rtl">${a.title}</div>
+              ${dateHtml}
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-sm btn-dark" onclick="editTitle('${catKey}',${a.id})">✏️</button>
+              <button class="btn btn-sm btn-accent" onclick="removeArticle('${catKey}',${a.id})">🗑</button>
+            </div>
+          </div>
+        </div>`;
+      }).join("");
+    }
+
+    function toggleArticle(catKey, id) {
+      if (!selectedIds[catKey]) selectedIds[catKey] = new Set();
+      if (selectedIds[catKey].has(id)) selectedIds[catKey].delete(id);
+      else selectedIds[catKey].add(id);
+      buildTabs();
+    }
+
+    function toggleSelectAll() {
+      const catKey = activeTab;
+      if (!catKey || !categoriesData[catKey]) return;
+      const all = categoriesData[catKey];
+      if (!selectedIds[catKey]) selectedIds[catKey] = new Set();
+      if (selectedIds[catKey].size === all.length) selectedIds[catKey].clear();
+      else all.forEach(a => selectedIds[catKey].add(a.id));
+      buildTabs();
+    }
+
+    function editTitle(catKey, id) {
+      const el = document.getElementById(`title-${catKey}-${id}`);
+      el.contentEditable = "true"; el.focus();
+      const r = document.createRange(); r.selectNodeContents(el);
+      window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+      const done = () => {
+        el.contentEditable = "false";
+        const a = categoriesData[catKey].find(x => x.id === id);
+        if (a) a.title = el.textContent.trim();
+        el.removeEventListener("blur", done); el.removeEventListener("keydown", onKey);
+      };
+      const onKey = (e) => { if (e.key==="Enter"){e.preventDefault();done();} if(e.key==="Escape"){el.textContent=categoriesData[catKey].find(x=>x.id===id)?.title||"";done();} };
+      el.addEventListener("blur", done); el.addEventListener("keydown", onKey);
+    }
+
+    function removeArticle(catKey, id) {
+      categoriesData[catKey] = categoriesData[catKey].filter(a => a.id !== id);
+      if (selectedIds[catKey]) selectedIds[catKey].delete(id);
+      categoriesData[catKey].forEach((a, i) => a.id = i + 1);
+      buildTabs();
+    }
+
+    async function fetchAllCategories() {
+      const btn = document.getElementById("btnFetchAll");
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> جاري التحميل...';
+      showLoading();
+      try {
+        const res = await fetch("/api/fetch-all?limit=20");
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        categoriesData = data.categories;
+        for (const k in data.categories) {
+          selectedIds[k] = new Set();
+          categoryLabels[k] = data.categories[k]?.[0]?.category_label_fr || k;
+        }
+        activeTab = Object.keys(categoriesData)[0] || null;
+        document.getElementById("emptyState").style.display = "none";
+        buildTabs();
+        const total = Object.values(data.categories).reduce((s, a) => s + a.length, 0);
+        showToast(`✅ ${total} خبر من ${Object.keys(data.categories).length} rubriques`);
+        if (data.errors?.length) showToast(`⚠️ ${data.errors.length} erreurs`);
+      } catch (err) { showToast("❌ " + err.message); }
+      finally { btn.disabled = false; btn.innerHTML = "📡 جلب كل الأخبار"; hideLoading(); }
+    }
+
+    async function saveSelection() {
+      const selected = [];
+      for (const catKey in selectedIds) {
+        const arts = categoriesData[catKey] || [];
+        for (const a of arts) {
+          if (selectedIds[catKey].has(a.id)) {
+            selected.push({ ...a, category_key: catKey });
+          }
+        }
+      }
+      if (!selected.length) return;
+
+      const payload = {
+        metadata: { source: "mapnews.ma", collect_date: new Date().toISOString(), total_articles: selected.length },
+        articles: selected.map((a, i) => ({ id: i + 1, ar: a.title, date: a.date, category: a.category_label_fr, category_key: a.category_key })),
+      };
+
+      try {
+        const res = await fetch("/api/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (data.success) { showToast(`✅ تم الحفظ: ${data.filename}`); openTranslateModal(selected); }
+      } catch { showToast("❌ خطأ في الحفظ"); }
+    }
+
+    function openTranslateModal(selected) {
+      const modal = document.getElementById("translateModal");
+      const content = document.getElementById("translateContent");
+      const grouped = {};
+      selected.forEach(a => {
+        const cat = a.category_label_fr || "Autre";
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(a);
+      });
+
+      let rows = "";
+      let idx = 0;
+      for (const cat in grouped) {
+        rows += `<tr><td colspan="4" style="background:#1a5c2a;color:white;padding:8px;font-weight:bold;text-align:right;">${cat}</td></tr>`;
+        for (const a of grouped[cat]) {
+          const dateStr = a.date ? a.date : "";
+          rows += `<tr>
+            <td style="width:8%;text-align:center;font-size:0.75rem;color:#888;white-space:nowrap;">${dateStr}</td>
+            <td style="width:31%;direction:rtl;"><textarea data-idx="${idx}" data-lang="ar" rows="2">${a.title}</textarea></td>
+            <td style="width:31%;"><textarea data-idx="${idx}" data-lang="fr" rows="2" placeholder="Traduction..."></textarea></td>
+            <td style="width:31%;"><textarea data-idx="${idx}" data-lang="en" rows="2" placeholder="Translation..."></textarea></td>
+          </tr>`;
+          idx++;
+        }
+      }
+
+      content.innerHTML = `
+        <table class="translate-table">
+          <thead><tr><th style="width:8%;">📅</th><th style="text-align:right;width:31%;">🇲🇦 العربية</th><th style="width:31%;">🇫🇷 Français</th><th style="width:31%;">🇬🇧 English</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      modal.classList.add("active");
+    }
+
+    async function autoTranslate(targetLang) {
+      if (translating) return;
+      translating = true;
+      const langLabel = targetLang === "fr" ? "FR" : "EN";
+      const btn = document.getElementById(targetLang === "fr" ? "btnTranslateFR" : "btnTranslateEN");
+      const progress = document.getElementById("translateProgress");
+
+      const arTextareas = document.querySelectorAll('textarea[data-lang="ar"]');
+      const texts = [];
+      const indices = [];
+      arTextareas.forEach(el => {
+        const idx = el.dataset.idx;
+        const targetEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="${targetLang}"]`);
+        if (targetEl && el.value.trim()) {
+          texts.push(el.value.trim());
+          indices.push(idx);
+        }
+      });
+
+      if (!texts.length) { translating = false; return; }
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> جاري الترجمة...`;
+
+      const BATCH_SIZE = 10;
+      const totalBatches = Math.ceil(texts.length / BATCH_SIZE);
+
+      try {
+        for (let batch = 0; batch < totalBatches; batch++) {
+          const start = batch * BATCH_SIZE;
+          const end = Math.min(start + BATCH_SIZE, texts.length);
+          const batchTexts = texts.slice(start, end);
+          const batchIndices = indices.slice(start, end);
+
+          progress.textContent = `${langLabel}: ${end}/${texts.length}`;
+
+          const res = await fetch("/api/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texts: batchTexts, target_lang: targetLang }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+
+          for (let i = 0; i < batchIndices.length; i++) {
+            const el = document.querySelector(`textarea[data-idx="${batchIndices[i]}"][data-lang="${targetLang}"]`);
+            if (el && data.translations[i]) {
+              el.value = data.translations[i];
+              el.style.background = "#f0faf3";
+            }
+          }
+        }
+        showToast(`✅ ${langLabel}: ${texts.length} traductions`);
+      } catch (err) {
+        showToast("❌ " + err.message);
+      }
+
+      progress.textContent = "";
+      btn.disabled = false;
+      btn.innerHTML = targetLang === "fr" ? "🇫🇷 ترجمة فرنسي" : "🇬🇧 ترجمة إنجليزي";
+      translating = false;
+    }
+
+    function getTranslationsFromForm() {
+      const arts = [];
+      document.querySelectorAll('textarea[data-lang="ar"]').forEach(arEl => {
+        const idx = arEl.dataset.idx;
+        const frEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="fr"]`);
+        const enEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="en"]`);
+        arts.push({ ar: arEl.value.trim(), fr: frEl?.value.trim() || "", en: enEl?.value.trim() || "" });
+      });
+      return arts;
+    }
+
+    async function generateDocument() {
+      const arts = getTranslationsFromForm();
+      try {
+        const res = await fetch("/api/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ articles: arts }) });
+        const data = await res.json();
+        if (!data.success) throw new Error("Export failed");
+        closeModal("translateModal");
+        document.getElementById("outputText").value = data.content;
+        document.getElementById("previewModal").classList.add("active");
+        showToast("✅ تم إنشاء الوثيقة");
+      } catch { showToast("❌ خطأ في التصدير"); }
+    }
+
+    function copyOutput() {
+      navigator.clipboard.writeText(document.getElementById("outputText").value).then(() => showToast("📋 تم النسخ!"));
+    }
+
+    function downloadTxt() {
+      const text = document.getElementById("outputText").value;
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      const d = new Date(), pad = n => String(n).padStart(2, "0");
+      a.href = URL.createObjectURL(blob);
+      a.download = `bande-news_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.txt`;
+      a.click();
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.remove("active"); }
+    document.querySelectorAll(".modal-overlay").forEach(o => o.addEventListener("click", e => { if (e.target === o) o.classList.remove("active"); }));
+
+    async function loadCollectes() {
+      try {
+        const res = await fetch("/api/collectes");
+        const data = await res.json();
+        const list = document.getElementById("archiveList");
+        if (!data.files.length) { list.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">لا توجد مجموعات</p>'; }
+        else { list.innerHTML = data.files.map(f => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #eee;direction:ltr;"><span style="font-size:0.85rem;">📄 ${f.name}</span><button class="btn btn-sm btn-primary" onclick="loadCollecte('${f.name}')">تحميل</button></div>`).join(""); }
+        document.getElementById("archiveModal").classList.add("active");
+      } catch { showToast("❌ خطأ"); }
+    }
+
+    async function loadCollecte(filename) {
+      try {
+        const res = await fetch(`/api/collecte/${filename}`);
+        const data = await res.json();
+        for (const a of (data.articles || [])) {
+          const catKey = a.category_key || "politique";
+          if (!categoriesData[catKey]) { categoriesData[catKey] = []; selectedIds[catKey] = new Set(); }
+          categoriesData[catKey].push({ id: categoriesData[catKey].length + 1, title: a.ar, date: a.date || "", category_label_fr: a.category || catKey });
+        }
+        activeTab = Object.keys(categoriesData)[0];
+        closeModal("archiveModal");
+        document.getElementById("emptyState").style.display = "none";
+        buildTabs();
+        showToast("✅ تم التحميل");
+      } catch { showToast("❌ خطأ"); }
+    }
+
+    (async () => {
+      try {
+        const res = await fetch("/api/categories");
+        const data = await res.json();
+        if (data.success) {
+          for (const c of data.categories) {
+            categoriesData[c.key] = [];
+            selectedIds[c.key] = new Set();
+            categoryLabels[c.key] = c.label_fr;
+          }
+          activeTab = data.categories[0]?.key;
+          buildTabs();
+        }
+      } catch {}
+    })();
+  </script>
+</body>
+</html>

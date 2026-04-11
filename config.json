@@ -1,0 +1,35 @@
+{
+  "base_url": "https://www.mapnews.ma",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+  "scrape_delay_ms": 1500,
+  "cache_ttl_min": 60,
+  "categories": {
+    "activites_royales": {
+      "label": "أنشطة ملكية",
+      "label_fr": "Activités royales",
+      "url": "/ar/activites_royales",
+      "rss_path": "/ar/rss"
+    },
+    "politique": {
+      "label": "سياسة",
+      "label_fr": "Politique",
+      "url": "/ar/actualites/politique",
+      "rss_path": "/ar/rss"
+    },
+    "social": {
+      "label": "مجتمع",
+      "label_fr": "Société",
+      "url": "/ar/actualites/social",
+      "rss_path": "/ar/rss"
+    },
+    "economie": {
+      "label": "إقتصاد",
+      "label_fr": "Économie",
+      "url": "/ar/actualites/economie",
+      "rss_path": "/ar/rss"
+    }
+  },
+  "default_limit": 20,
+  "output_dir": "./output",
+  "separator": "§"
+}
