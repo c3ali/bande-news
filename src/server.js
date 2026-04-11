@@ -118,6 +118,21 @@ function parseArticlesFromHtml(html, catKey) {
   return extractArticlesFromActualites(html);
 }
 
+async function fetchViaProxy(targetUrl) {
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+  const res = await fetch(proxyUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+  if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+  return res.text();
+}
+
+async function fetchPage(url, headers) {
+  try {
+    const res = await fetch(url, { headers, redirect: "follow" });
+    if (res.ok) return await res.text();
+  } catch {}
+  return fetchViaProxy(url);
+}
+
 async function fetchCategoryArticles(catKey, limit = 20) {
   const cat = config.categories[catKey];
   if (!cat) throw new Error(`Unknown category: ${catKey}`);
@@ -129,10 +144,8 @@ async function fetchCategoryArticles(catKey, limit = 20) {
   const delay = config.scrape_delay_ms || 1500;
   const headers = getRequestHeaders();
   const url = `${config.base_url}${cat.url}`;
-  const response = await fetch(url, { headers });
-  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+  const html = await fetchPage(url, headers);
 
-  const html = await response.text();
   let articles = parseArticlesFromHtml(html, catKey);
 
   if (articles.length < limit) {
@@ -142,9 +155,7 @@ async function fetchCategoryArticles(catKey, limit = 20) {
       await sleep(delay);
       try {
         const pageUrl = `${url}?page=${page}`;
-        const pageRes = await fetch(pageUrl, { headers });
-        if (!pageRes.ok) break;
-        const pageHtml = await pageRes.text();
+        const pageHtml = await fetchPage(pageUrl, headers);
         const pageArticles = parseArticlesFromHtml(pageHtml, catKey);
         if (pageArticles.length === 0) break;
         articles = articles.concat(pageArticles);
