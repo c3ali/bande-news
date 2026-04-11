@@ -2,40 +2,21 @@ import express from "express";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
-import puppeteerExtra from "puppeteer-extra";
-import StealthPlugin from "puppeteer-extra-plugin-stealth";
-
-puppeteerExtra.use(StealthPlugin());
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "gemma4:e2b";
+const FLARESOLVERR_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191";
 const CACHE = new Map();
+
+app.use(express.json({ limit: "5mb" }));
+app.use(express.static(resolve(__dirname, "../public")));
 
 const config = JSON.parse(
   readFileSync(resolve(__dirname, "../config.json"), "utf-8")
 );
-
-function getRequestHeaders() {
-  return {
-    "User-Agent": config.user_agent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "ar,en;q=0.7,fr;q=0.5",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-    "Sec-Ch-Ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Sec-Ch-Ua-Platform": '"Windows"',
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
-  };
-}
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
@@ -122,50 +103,28 @@ function parseArticlesFromHtml(html, catKey) {
   return extractArticlesFromActualites(html);
 }
 
-let browserInstance = null;
-
-async function getBrowser() {
-  if (!browserInstance || !browserInstance.isConnected()) {
-    browserInstance = await puppeteerExtra.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"],
-    });
-  }
-  return browserInstance;
+function getRequestHeaders() {
+  return {
+    "User-Agent": config.user_agent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ar,en;q=0.7,fr;q=0.5",
+  };
 }
 
-async function fetchViaBrowser(url) {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent(config.user_agent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-    await page.setExtraHTTPHeaders({ "Accept-Language": "ar,en;q=0.7,fr;q=0.5" });
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-
-    for (let i = 0; i < 10; i++) {
-      const html = await page.content();
-      if (!html.includes("challenge-platform") && !html.includes("Just a moment") && html.length > 50000) {
-        return html;
-      }
-      await sleep(2000);
-    }
-
-    return await page.content();
-  } finally {
-    await page.close();
-  }
-}
-
-async function fetchPage(url, headers) {
-  try {
-    const res = await fetch(url, { headers, redirect: "follow" });
-    if (res.ok) {
-      const text = await res.text();
-      if (!text.includes("Just a moment")) return text;
-    }
-  } catch {}
-  return fetchViaBrowser(url);
+async function fetchViaFlareSolverr(url) {
+  const res = await fetch(`${FLARESOLVERR_URL}/v1`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      cmd: "request.get",
+      url,
+      maxTimeout: 30000,
+    }),
+  });
+  if (!res.ok) throw new Error(`FlareSolverr HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.status !== "ok") throw new Error(`FlareSolverr failed: ${data.message || "unknown"}`);
+  return data.solution.response;
 }
 
 async function fetchCategoryArticles(catKey, limit = 20) {
@@ -179,7 +138,21 @@ async function fetchCategoryArticles(catKey, limit = 20) {
   const delay = config.scrape_delay_ms || 1500;
   const headers = getRequestHeaders();
   const url = `${config.base_url}${cat.url}`;
-  const html = await fetchPage(url, headers);
+
+  let html;
+  try {
+    const response = await fetch(url, { headers });
+    if (response.ok) {
+      html = await response.text();
+      if (html.includes("Just a moment") || html.includes("challenge-platform")) {
+        html = null;
+      }
+    }
+  } catch {}
+
+  if (!html) {
+    html = await fetchViaFlareSolverr(url);
+  }
 
   let articles = parseArticlesFromHtml(html, catKey);
 
@@ -190,7 +163,17 @@ async function fetchCategoryArticles(catKey, limit = 20) {
       await sleep(delay);
       try {
         const pageUrl = `${url}?page=${page}`;
-        const pageHtml = await fetchPage(pageUrl, headers);
+        let pageHtml;
+        try {
+          const pageRes = await fetch(pageUrl, { headers });
+          if (pageRes.ok) {
+            pageHtml = await pageRes.text();
+            if (pageHtml.includes("Just a moment") || pageHtml.includes("challenge-platform")) {
+              pageHtml = null;
+            }
+          }
+        } catch {}
+        if (!pageHtml) pageHtml = await fetchViaFlareSolverr(pageUrl);
         const pageArticles = parseArticlesFromHtml(pageHtml, catKey);
         if (pageArticles.length === 0) break;
         articles = articles.concat(pageArticles);
@@ -253,9 +236,6 @@ ${numbered}`;
   return translations;
 }
 
-app.use(express.json());
-app.use(express.static(resolve(__dirname, "../public")));
-
 app.get("/api/categories", (req, res) => {
   const cats = Object.entries(config.categories).map(([key, val]) => ({
     key,
@@ -263,51 +243,6 @@ app.get("/api/categories", (req, res) => {
     label_fr: val.label_fr,
   }));
   res.json({ success: true, categories: cats });
-});
-
-app.get("/api/debug-html/:catKey", async (req, res) => {
-  try {
-    const cat = config.categories[req.params.catKey];
-    if (!cat) return res.status(400).json({ error: "Unknown category" });
-    const url = `${config.base_url}${cat.url}`;
-    const headers = getRequestHeaders();
-
-    let method = "direct";
-    let directStatus = null;
-    let html = "";
-    try {
-      const r = await fetch(url, { headers, redirect: "follow" });
-      directStatus = r.status;
-      if (r.ok) {
-        const t = await r.text();
-        if (!t.includes("Just a moment")) { html = t; method = "direct"; }
-        else { method = "direct-but-cloudflare"; }
-      }
-    } catch (e) { method = "direct-failed: " + e.message; }
-
-    if (!html) {
-      method = "puppeteer";
-      html = await fetchViaBrowser(url);
-    }
-
-    const hasBlock1 = html.includes('class="block-1"');
-    const hasFieldContent = html.includes('class="field-content"');
-    const hasJustAMoment = html.includes("Just a moment");
-    const titleMatches = html.match(/<span class="field-content"><a href="\/ar\/actualites\/[^"]+">/g);
-
-    res.json({
-      method,
-      directStatus,
-      htmlLength: html.length,
-      hasBlock1,
-      hasFieldContent,
-      hasJustAMoment,
-      titleCount: titleMatches ? titleMatches.length : 0,
-      htmlPreview: html.substring(0, 2000),
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
 app.get("/api/fetch-category/:catKey", async (req, res) => {
@@ -354,6 +289,33 @@ app.post("/api/translate", async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+app.post("/api/import", (req, res) => {
+  const { categories } = req.body;
+  if (!categories) return res.status(400).json({ error: "categories required" });
+
+  const outputDir = resolve(__dirname, "../output");
+  if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+
+  const payload = {
+    metadata: { source: "mapnews.ma", collect_date: new Date().toISOString(), imported: true },
+    categories,
+  };
+
+  const filename = `collecte_${ts}.json`;
+  writeFileSync(resolve(outputDir, filename), JSON.stringify(payload, null, 2), "utf-8");
+
+  for (const [catKey, articles] of Object.entries(categories)) {
+    setCache(`${catKey}:${articles.length}`, articles);
+  }
+
+  const totalArticles = Object.values(categories).reduce((s, a) => s + a.length, 0);
+  res.json({ success: true, filename, total: totalArticles });
 });
 
 app.get("/api/collectes", (req, res) => {
@@ -417,4 +379,3 @@ app.post("/api/export", (req, res) => {
 app.listen(PORT, () => {
   console.log(`\n  📰 Bande News — http://localhost:${PORT}\n`);
 });
-
