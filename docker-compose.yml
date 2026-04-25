@@ -8,8 +8,12 @@ services:
       - FLARESOLVERR_URL=http://flaresolverr:8191
     depends_on:
       - flaresolverr
+    restart: unless-stopped
 
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     environment:
       - LOG_LEVEL=info
+      - BROWSER_TIMEOUT=60000
+    mem_limit: 1g
+    restart: unless-stopped

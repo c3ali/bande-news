@@ -123,14 +123,21 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
 }
 
 async function fetchViaProxy(url) {
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-  const res = await fetchWithTimeout(proxyUrl, {}, 15000);
-  if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
-  const html = await res.text();
-  if (html.length < 200 || html.includes("Just a moment") || html.includes("challenge-platform")) {
-    throw new Error("Proxy returned Cloudflare challenge");
+  const proxies = [
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  ];
+  for (const makeUrl of proxies) {
+    try {
+      const res = await fetchWithTimeout(makeUrl(url), {}, 10000);
+      if (!res.ok) continue;
+      const html = await res.text();
+      if (html.length > 500 && !html.includes("Just a moment") && !html.includes("challenge-platform")) {
+        return html;
+      }
+    } catch {}
   }
-  return html;
+  throw new Error("All proxies failed");
 }
 
 async function fetchViaFlareSolverr(url) {
@@ -140,35 +147,41 @@ async function fetchViaFlareSolverr(url) {
     body: JSON.stringify({
       cmd: "request.get",
       url,
-      maxTimeout: 20000,
+      maxTimeout: 60000,
     }),
-  }, 25000);
-  if (!res.ok) throw new Error(`FlareSolverr HTTP ${res.status}`);
+  }, 65000);
   const data = await res.json();
-  if (data.status !== "ok") throw new Error(`FlareSolverr failed: ${data.message || "unknown"}`);
+  if (!res.ok || data.status !== "ok") {
+    throw new Error(`FlareSolverr: ${data.message || data.status || res.status}`);
+  }
   return data.solution.response;
 }
 
 async function fetchPageHtml(url, headers) {
+  const errors = [];
+
   try {
-    const response = await fetchWithTimeout(url, { headers }, 12000);
+    const response = await fetchWithTimeout(url, { headers }, 10000);
     if (response.ok) {
       const html = await response.text();
       if (!html.includes("Just a moment") && !html.includes("challenge-platform")) {
         return html;
       }
+      errors.push("direct: Cloudflare challenge");
+    } else {
+      errors.push(`direct: HTTP ${response.status}`);
     }
-  } catch {}
-
-  try {
-    return await fetchViaProxy(url);
-  } catch {}
+  } catch (e) { errors.push(`direct: ${e.message}`); }
 
   try {
     return await fetchViaFlareSolverr(url);
-  } catch {}
+  } catch (e) { errors.push(`flaresolverr: ${e.message}`); }
 
-  throw new Error(`All fetch methods failed for ${url}`);
+  try {
+    return await fetchViaProxy(url);
+  } catch (e) { errors.push(`proxy: ${e.message}`); }
+
+  throw new Error(`All methods failed: ${errors.join(" | ")}`);
 }
 
 async function fetchCategoryArticles(catKey, limit = 20) {
