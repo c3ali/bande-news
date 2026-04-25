@@ -14,6 +14,14 @@ const CACHE = new Map();
 app.use(express.json({ limit: "5mb" }));
 app.use(express.static(resolve(__dirname, "../public")));
 
+app.use("/api/import", (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
+
 const config = JSON.parse(
   readFileSync(resolve(__dirname, "../config.json"), "utf-8")
 );
