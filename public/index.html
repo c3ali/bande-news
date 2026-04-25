@@ -134,6 +134,7 @@
       <button class="btn btn-primary" id="btnFetchAll" onclick="fetchAllCategories()">📡 جلب كل الأخبار</button>
       <button class="btn btn-dark" id="btnSelectAll" onclick="toggleSelectAll()" disabled>✅ تحديد الكل</button>
       <button class="btn btn-accent" id="btnSave" onclick="saveSelection()" disabled>💾 حفظ وترجمة</button>
+      <button class="btn btn-blue" onclick="openLocalMode()">📱 جمع محلي</button>
       <span class="spacer"></span>
       <span class="counter" id="counter">0 عنصر</span>
     </div>
@@ -181,6 +182,34 @@
       <div id="archiveList" style="max-height:400px; overflow-y:auto;"></div>
       <div style="margin-top:14px; text-align:left;">
         <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('archiveModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="localModal">
+    <div class="modal" style="max-width:95%;">
+      <h2>📱 جمع محلي — Mode Local</h2>
+      <div style="margin-bottom:16px; font-size:0.88rem; line-height:1.8; direction:ltr;">
+        <p><strong>Étape 1 :</strong> Ouvrez une catégorie dans un nouvel onglet :</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;">
+          <a href="https://www.mapnews.ma/ar/activites_royales" target="_blank" class="btn btn-sm btn-dark">Activités royales</a>
+          <a href="https://www.mapnews.ma/ar/actualites/politique" target="_blank" class="btn btn-sm btn-dark">Politique</a>
+          <a href="https://www.mapnews.ma/ar/actualites/social" target="_blank" class="btn btn-sm btn-dark">Société</a>
+          <a href="https://www.mapnews.ma/ar/actualites/economie" target="_blank" class="btn btn-sm btn-dark">Économie</a>
+        </div>
+        <p><strong>Étape 2 :</strong> Sur la page ouverte, appuyez longuement → <em>Sélectionner tout</em> → <em>Copier</em></p>
+        <p><strong>Étape 3 :</strong> Collez le contenu ci-dessous et cliquez <em>Analyser</em></p>
+      </div>
+      <select id="localCatSelect" style="width:100%; padding:8px; margin-bottom:10px; font-size:0.9rem; border-radius:6px; border:1px solid #ccc;">
+        <option value="activites_royales">Activités royales — الأنشطة الملكية</option>
+        <option value="politique" selected>Politique — السياسة</option>
+        <option value="social">Société — المجتمع</option>
+        <option value="economie">Économie — الاقتصاد</option>
+      </select>
+      <textarea id="localHtmlInput" style="width:100%; min-height:200px; font-family:monospace; font-size:0.8rem; padding:12px; border:1px solid #ccc; border-radius:8px; direction:ltr;" placeholder="Collez ici le contenu de la page..."></textarea>
+      <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="parseLocalHtml()">🔍 تحليل — Analyser</button>
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('localModal')">إغلاق</button>
       </div>
     </div>
   </div>
@@ -631,6 +660,57 @@
 
     function closeModal(id) { document.getElementById(id).classList.remove("active"); }
     document.querySelectorAll(".modal-overlay").forEach(o => o.addEventListener("click", e => { if (e.target === o) o.classList.remove("active"); }));
+
+    function openLocalMode() {
+      document.getElementById("localModal").classList.add("active");
+    }
+
+    function parseLocalHtml() {
+      const catKey = document.getElementById("localCatSelect").value;
+      const cat = CATEGORIES[catKey];
+      const raw = document.getElementById("localHtmlInput").value.trim();
+
+      if (!raw) { showToast("❌ Collez le contenu d'abord"); return; }
+
+      let articles = parseArticles(raw, catKey);
+
+      if (articles.length === 0 && raw.includes("<")) {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = raw;
+        const textContent = tempDiv.textContent || tempDiv.innerText || "";
+        const lines = textContent.split("\n").map(l => l.trim()).filter(l => l.length >= 15 && l !== TITMIMA);
+        const seen = new Set();
+        for (const line of lines) {
+          if (!seen.has(line)) { seen.add(line); articles.push({ title: line, date: "" }); }
+        }
+      }
+
+      if (articles.length === 0) { showToast("❌ Aucun article trouvé"); return; }
+
+      const formatted = articles.slice(0, 30).map((a, i) => ({
+        id: i + 1,
+        title: a.title,
+        date: a.date,
+        category: catKey,
+        category_label: cat.label,
+        category_label_fr: cat.label_fr,
+      }));
+
+      categoriesData[catKey] = formatted;
+      selectedIds[catKey] = new Set();
+      categoryLabels[catKey] = cat.label_fr;
+      activeTab = catKey;
+      document.getElementById("emptyState").style.display = "none";
+      buildTabs();
+      closeModal("localModal");
+      showToast(`✅ ${formatted.length} article(s) — ${cat.label_fr}`);
+
+      fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categories: { [catKey]: formatted } }),
+      }).catch(() => {});
+    }
 
     async function loadCollectes() {
       try {
