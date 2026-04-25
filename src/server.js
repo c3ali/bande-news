@@ -397,6 +397,32 @@ app.post("/api/export", (req, res) => {
   res.json({ success: true, txtFile: txtPath, jsonFile: jsonPath, content: txtContent });
 });
 
+app.get("/api/debug", async (req, res) => {
+  const results = {};
+  const testUrl = `${config.base_url}/ar/actualites/politique`;
+
+  results.direct = "pending";
+  try {
+    const r = await fetchWithTimeout(testUrl, { headers: getRequestHeaders() }, 10000);
+    const t = await r.text();
+    results.direct = { status: r.status, length: t.length, hasArticles: t.includes("block-1"), isCloudflare: t.includes("Just a moment") };
+  } catch (e) { results.direct = { error: e.message }; }
+
+  results.proxy = "pending";
+  try {
+    const t = await fetchViaProxy(testUrl);
+    results.proxy = { length: t.length, hasArticles: t.includes("block-1") };
+  } catch (e) { results.proxy = { error: e.message }; }
+
+  results.flaresolverr = "pending";
+  try {
+    const t = await fetchViaFlareSolverr(testUrl);
+    results.flaresolverr = { length: t.length, hasArticles: t.includes("block-1") };
+  } catch (e) { results.flaresolverr = { error: e.message }; }
+
+  res.json({ success: true, env: { FLARESOLVERR_URL, NODE_VERSION: process.version }, results });
+});
+
 app.listen(PORT, () => {
   console.log(`\n  📰 Bande News — http://localhost:${PORT}\n`);
 });
