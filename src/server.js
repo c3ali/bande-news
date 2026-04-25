@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "gemma4:e2b";
-const FLARESOLVERR_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191";
+const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY || "";
 const CACHE = new Map();
 
 app.use(express.json({ limit: "5mb" }));
@@ -130,6 +130,16 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   }
 }
 
+async function fetchViaScraperApi(url) {
+  if (!SCRAPER_API_KEY) throw new Error("SCRAPER_API_KEY not set");
+  const apiUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(url)}&render=true`;
+  const res = await fetchWithTimeout(apiUrl, {}, 30000);
+  if (!res.ok) throw new Error(`ScraperAPI HTTP ${res.status}`);
+  const html = await res.text();
+  if (html.length < 500 || html.includes("Just a moment")) throw new Error("ScraperAPI: Cloudflare not bypassed");
+  return html;
+}
+
 async function fetchViaProxy(url) {
   const proxies = [
     (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
@@ -167,6 +177,10 @@ async function fetchViaFlareSolverr(url) {
 
 async function fetchPageHtml(url, headers) {
   const errors = [];
+
+  try {
+    return await fetchViaScraperApi(url);
+  } catch (e) { errors.push(`scraperapi: ${e.message}`); }
 
   try {
     const response = await fetchWithTimeout(url, { headers }, 10000);
@@ -422,6 +436,12 @@ app.get("/api/debug", async (req, res) => {
   const results = {};
   const testUrl = `${config.base_url}/ar/actualites/politique`;
 
+  results.scraperapi = "pending";
+  try {
+    const t = await fetchViaScraperApi(testUrl);
+    results.scraperapi = { length: t.length, hasArticles: t.includes("block-1") };
+  } catch (e) { results.scraperapi = { error: e.message }; }
+
   results.direct = "pending";
   try {
     const r = await fetchWithTimeout(testUrl, { headers: getRequestHeaders() }, 10000);
@@ -429,19 +449,7 @@ app.get("/api/debug", async (req, res) => {
     results.direct = { status: r.status, length: t.length, hasArticles: t.includes("block-1"), isCloudflare: t.includes("Just a moment") };
   } catch (e) { results.direct = { error: e.message }; }
 
-  results.proxy = "pending";
-  try {
-    const t = await fetchViaProxy(testUrl);
-    results.proxy = { length: t.length, hasArticles: t.includes("block-1") };
-  } catch (e) { results.proxy = { error: e.message }; }
-
-  results.flaresolverr = "pending";
-  try {
-    const t = await fetchViaFlareSolverr(testUrl);
-    results.flaresolverr = { length: t.length, hasArticles: t.includes("block-1") };
-  } catch (e) { results.flaresolverr = { error: e.message }; }
-
-  res.json({ success: true, env: { FLARESOLVERR_URL, NODE_VERSION: process.version }, results });
+  res.json({ success: true, env: { SCRAPER_API_KEY: SCRAPER_API_KEY ? "configured" : "missing", NODE_VERSION: process.version }, results });
 });
 
 app.listen(PORT, "0.0.0.0", () => {

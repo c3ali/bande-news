@@ -5,16 +5,5 @@ services:
       - "${PORT:-3001}:3000"
     environment:
       - OLLAMA_URL=http://ollama:11434
-      - FLARESOLVERR_URL=http://flaresolverr:8191
-    depends_on:
-      - flaresolverr
-    restart: unless-stopped
-
-  flaresolverr:
-    build: https://github.com/21hsmw/FlareSolverr.git#nodriver-support
-    environment:
-      - LOG_LEVEL=info
-      - BROWSER_TIMEOUT=60000
-      - DRIVER=nodriver
-    mem_limit: 2g
+      - SCRAPER_API_KEY=${SCRAPER_API_KEY:-}
     restart: unless-stopped
