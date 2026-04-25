@@ -301,6 +301,7 @@
     }
 
     const CORS_PROXIES = [
+      (u) => `https://web.archive.org/web/${encodeURIComponent(u)}`,
       (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
       (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
     ];
@@ -367,7 +368,7 @@
       return catKey === "activites_royales" ? extractRoyales(html) : extractActualites(html);
     }
 
-    async function fetchViaCorsProxy(url, timeoutMs = 20000) {
+    async function fetchViaCorsProxy(url, timeoutMs = 30000) {
       for (const makeProxyUrl of CORS_PROXIES) {
         try {
           const controller = new AbortController();
@@ -376,7 +377,7 @@
           clearTimeout(timer);
           if (!res.ok) continue;
           const html = await res.text();
-          if (html.length > 500 && !html.includes("Just a moment") && !html.includes("challenge-platform")) {
+          if (html.length > 1000 && !html.includes("Just a moment") && !html.includes("challenge-platform")) {
             return html;
           }
         } catch {}
