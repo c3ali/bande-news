@@ -11,9 +11,10 @@ services:
     restart: unless-stopped
 
   flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
+    build: https://github.com/21hsmw/FlareSolverr.git#nodriver-support
     environment:
       - LOG_LEVEL=info
       - BROWSER_TIMEOUT=60000
+      - DRIVER=nodriver
     mem_limit: 2g
     restart: unless-stopped
