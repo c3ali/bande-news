@@ -111,20 +111,64 @@ function getRequestHeaders() {
   };
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchViaProxy(url) {
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+  const res = await fetchWithTimeout(proxyUrl, {}, 15000);
+  if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+  const html = await res.text();
+  if (html.length < 200 || html.includes("Just a moment") || html.includes("challenge-platform")) {
+    throw new Error("Proxy returned Cloudflare challenge");
+  }
+  return html;
+}
+
 async function fetchViaFlareSolverr(url) {
-  const res = await fetch(`${FLARESOLVERR_URL}/v1`, {
+  const res = await fetchWithTimeout(`${FLARESOLVERR_URL}/v1`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       cmd: "request.get",
       url,
-      maxTimeout: 30000,
+      maxTimeout: 20000,
     }),
-  });
+  }, 25000);
   if (!res.ok) throw new Error(`FlareSolverr HTTP ${res.status}`);
   const data = await res.json();
   if (data.status !== "ok") throw new Error(`FlareSolverr failed: ${data.message || "unknown"}`);
   return data.solution.response;
+}
+
+async function fetchPageHtml(url, headers) {
+  try {
+    const response = await fetchWithTimeout(url, { headers }, 12000);
+    if (response.ok) {
+      const html = await response.text();
+      if (!html.includes("Just a moment") && !html.includes("challenge-platform")) {
+        return html;
+      }
+    }
+  } catch {}
+
+  try {
+    return await fetchViaProxy(url);
+  } catch {}
+
+  try {
+    return await fetchViaFlareSolverr(url);
+  } catch {}
+
+  throw new Error(`All fetch methods failed for ${url}`);
 }
 
 async function fetchCategoryArticles(catKey, limit = 20) {
@@ -139,20 +183,7 @@ async function fetchCategoryArticles(catKey, limit = 20) {
   const headers = getRequestHeaders();
   const url = `${config.base_url}${cat.url}`;
 
-  let html;
-  try {
-    const response = await fetch(url, { headers });
-    if (response.ok) {
-      html = await response.text();
-      if (html.includes("Just a moment") || html.includes("challenge-platform")) {
-        html = null;
-      }
-    }
-  } catch {}
-
-  if (!html) {
-    html = await fetchViaFlareSolverr(url);
-  }
+  const html = await fetchPageHtml(url, headers);
 
   let articles = parseArticlesFromHtml(html, catKey);
 
@@ -163,17 +194,7 @@ async function fetchCategoryArticles(catKey, limit = 20) {
       await sleep(delay);
       try {
         const pageUrl = `${url}?page=${page}`;
-        let pageHtml;
-        try {
-          const pageRes = await fetch(pageUrl, { headers });
-          if (pageRes.ok) {
-            pageHtml = await pageRes.text();
-            if (pageHtml.includes("Just a moment") || pageHtml.includes("challenge-platform")) {
-              pageHtml = null;
-            }
-          }
-        } catch {}
-        if (!pageHtml) pageHtml = await fetchViaFlareSolverr(pageUrl);
+        const pageHtml = await fetchPageHtml(pageUrl, headers);
         const pageArticles = parseArticlesFromHtml(pageHtml, catKey);
         if (pageArticles.length === 0) break;
         articles = articles.concat(pageArticles);
