@@ -300,27 +300,173 @@
       buildTabs();
     }
 
+    const CORS_PROXIES = [
+      (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+      (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    ];
+
+    const CATEGORIES = {
+      activites_royales: { label: "أنشطة ملكية", label_fr: "Activités royales", url: "/ar/activites-royales" },
+      politique: { label: "سياسة", label_fr: "Politique", url: "/ar/actualites/politique" },
+      social: { label: "مجتمع", label_fr: "Société", url: "/ar/actualites/social" },
+      economie: { label: "إقتصاد", label_fr: "Économie", url: "/ar/actualites/economie" },
+    };
+
+    const BASE_URL = "https://www.mapnews.ma";
+    const TITMIMA = "\u062A\u0640\u062A\u0640\u0645\u0640\u0629";
+
+    function decodeHtmlEntities(str) {
+      const el = document.createElement("textarea");
+      el.innerHTML = str;
+      return el.value;
+    }
+
+    function extractActualites(html) {
+      const articles = [];
+      const seen = new Set();
+      const blocks = html.split(/<div class="block-1">/);
+      for (const block of blocks) {
+        const tm = block.match(/<span class="field-content"><a href="\/ar\/actualites\/[^"]+">([^<]+)<\/a><\/span>/);
+        if (!tm) continue;
+        const title = decodeHtmlEntities(tm[1]).replace(/\s+/g, " ").trim();
+        if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
+        seen.add(title);
+        const dm = block.match(/<div class="field-content date-actualites">([^<]+)<\/div>/);
+        articles.push({ title, date: dm ? dm[1].trim() : "" });
+      }
+      return articles;
+    }
+
+    function extractRoyales(html) {
+      const articles = [];
+      const seen = new Set();
+      const rows = html.split(/<div class="element_over_hidden views-row/);
+      for (const row of rows) {
+        const tm = row.match(/page_second_title[^>]*><a href="\/ar\/activites-royales\/[^"]+">([^<]+)<\/a>/);
+        if (!tm) continue;
+        const title = decodeHtmlEntities(tm[1]).replace(/\s+/g, " ").trim();
+        if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
+        seen.add(title);
+        const dm = row.match(/<div class="field-content node-date">([^<]+)<\/div>/);
+        articles.push({ title, date: dm ? dm[1].trim() : "" });
+      }
+      if (articles.length < 3) {
+        const re = /<span class="field-content page_(?:first|second)_title"><a href="\/ar\/activites-royales\/[^"]+">([^<]+)<\/a><\/span>/gi;
+        let m;
+        while ((m = re.exec(html)) !== null) {
+          const title = decodeHtmlEntities(m[1]).replace(/\s+/g, " ").trim();
+          if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
+          seen.add(title);
+          articles.push({ title, date: "" });
+        }
+      }
+      return articles;
+    }
+
+    function parseArticles(html, catKey) {
+      return catKey === "activites_royales" ? extractRoyales(html) : extractActualites(html);
+    }
+
+    async function fetchViaCorsProxy(url, timeoutMs = 20000) {
+      for (const makeProxyUrl of CORS_PROXIES) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), timeoutMs);
+          const res = await fetch(makeProxyUrl(url), { signal: controller.signal });
+          clearTimeout(timer);
+          if (!res.ok) continue;
+          const html = await res.text();
+          if (html.length > 500 && !html.includes("Just a moment") && !html.includes("challenge-platform")) {
+            return html;
+          }
+        } catch {}
+      }
+      return null;
+    }
+
     async function fetchAllCategories() {
       const btn = document.getElementById("btnFetchAll");
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> جاري التحميل...';
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> جاري التحميل...';
       showLoading();
+
+      let categories = {};
+      let errors = [];
+
       try {
-        const res = await fetch("/api/fetch-all?limit=20");
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error);
-        categoriesData = data.categories;
-        for (const k in data.categories) {
+        const catKeys = Object.keys(CATEGORIES);
+        for (let i = 0; i < catKeys.length; i++) {
+          const catKey = catKeys[i];
+          const cat = CATEGORIES[catKey];
+          btn.innerHTML = `<span class="spinner"></span> ${cat.label_fr} (${i + 1}/${catKeys.length})...`;
+
+          try {
+            const url = `${BASE_URL}${cat.url}`;
+            let html = await fetchViaCorsProxy(url);
+
+            let articles = html ? parseArticles(html, catKey) : [];
+
+            if (articles.length > 0 && articles.length < 20) {
+              const pageHtml = await fetchViaCorsProxy(`${url}?page=1`);
+              if (pageHtml) {
+                const more = parseArticles(pageHtml, catKey);
+                const seen = new Set(articles.map(a => a.title));
+                for (const a of more) {
+                  if (!seen.has(a.title)) { seen.add(a.title); articles.push(a); }
+                }
+              }
+            }
+
+            categories[catKey] = articles.slice(0, 20).map((a, idx) => ({
+              id: idx + 1,
+              title: a.title,
+              date: a.date,
+              category: catKey,
+              category_label: cat.label,
+              category_label_fr: cat.label_fr,
+            }));
+          } catch (err) {
+            errors.push({ category: catKey, error: err.message });
+            categories[catKey] = [];
+          }
+        }
+
+        if (Object.values(categories).every(a => a.length === 0)) {
+          const res = await fetch("/api/fetch-all?limit=20");
+          const data = await res.json();
+          if (data.success) categories = data.categories;
+          else throw new Error(data.error || "Server fallback also failed");
+        }
+
+        categoriesData = categories;
+        for (const k in categories) {
           selectedIds[k] = new Set();
-          categoryLabels[k] = data.categories[k]?.[0]?.category_label_fr || k;
+          categoryLabels[k] = categories[k]?.[0]?.category_label_fr || CATEGORIES[k]?.label_fr || k;
         }
         activeTab = Object.keys(categoriesData)[0] || null;
         document.getElementById("emptyState").style.display = "none";
         buildTabs();
-        const total = Object.values(data.categories).reduce((s, a) => s + a.length, 0);
-        showToast(`✅ ${total} خبر من ${Object.keys(data.categories).length} rubriques`);
-        if (data.errors?.length) showToast(`⚠️ ${data.errors.length} erreurs`);
-      } catch (err) { showToast("❌ " + err.message); }
-      finally { btn.disabled = false; btn.innerHTML = "📡 جلب كل الأخبار"; hideLoading(); }
+
+        const total = Object.values(categories).reduce((s, a) => s + a.length, 0);
+        showToast(`✅ ${total} خبر من ${Object.keys(categories).length} rubriques`);
+        if (errors.length) showToast(`⚠️ ${errors.length} erreurs`);
+
+        if (total > 0) {
+          try {
+            await fetch("/api/import", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ categories }),
+            });
+          } catch {}
+        }
+      } catch (err) {
+        showToast("❌ " + err.message);
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = "📡 جلب كل الأخبار";
+      hideLoading();
     }
 
     async function saveSelection() {
