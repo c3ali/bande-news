@@ -444,6 +444,6 @@ app.get("/api/debug", async (req, res) => {
   res.json({ success: true, env: { FLARESOLVERR_URL, NODE_VERSION: process.version }, results });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`\n  📰 Bande News — http://localhost:${PORT}\n`);
 });

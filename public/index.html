@@ -135,6 +135,7 @@
       <button class="btn btn-primary" id="btnFetchAll" onclick="fetchAllCategories()">📡 جلب كل الأخبار</button>
       <button class="btn btn-dark" id="btnSelectAll" onclick="toggleSelectAll()" disabled>✅ تحديد الكل</button>
       <button class="btn btn-accent" id="btnSave" onclick="saveSelection()" disabled>💾 حفظ وترجمة</button>
+      <button class="btn btn-blue" id="btnPush" onclick="pushToServer()" style="display:none;">🚀 إرسال للخادم</button>
       <span class="spacer"></span>
       <span class="counter" id="counter">0 عنصر</span>
     </div>
@@ -740,6 +741,54 @@
       } catch { showToast("❌ خطأ"); }
     }
 
+    const DOKPLOY_URL_KEY = "bandenews_dokploy_url";
+
+    function getDokployUrl() {
+      let url = localStorage.getItem(DOKPLOY_URL_KEY);
+      if (!url) {
+        url = prompt("Entrez l'URL de votre serveur Dokploy :\nex: https://bande-news.votre-domaine.com");
+        if (url) {
+          url = url.trim().replace(/\/$/, "");
+          localStorage.setItem(DOKPLOY_URL_KEY, url);
+        }
+      }
+      return url;
+    }
+
+    async function pushToServer() {
+      const serverUrl = getDokployUrl();
+      if (!serverUrl) return;
+
+      const btn = document.getElementById("btnPush");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> إرسال...';
+
+      try {
+        const res = await fetch(serverUrl + "/api/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categories: categoriesData }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("✅ " + (data.total || 0) + " articles envoyés au serveur");
+        } else {
+          showToast("❌ " + (data.error || "Erreur"));
+        }
+      } catch (err) {
+        showToast("❌ Erreur réseau: " + err.message);
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = "🚀 إرسال للخادم";
+    }
+
+    function showPushButtonIfLocal() {
+      if (location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname.startsWith("192.168.")) {
+        document.getElementById("btnPush").style.display = "inline-flex";
+      }
+    }
+
     (async () => {
       try {
         const res = await fetch("/api/categories");
@@ -754,6 +803,7 @@
           buildTabs();
         }
       } catch {}
+      showPushButtonIfLocal();
     })();
   </script>
 </body>
