@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
 
   flaresolverr:
-    image: ghcr.io/21hsmw/flaresolverr/flaresolverr:latest
+    image: ghcr.io/flaresolverr/flaresolverr:latest
     environment:
       - LOG_LEVEL=info
       - BROWSER_TIMEOUT=60000
