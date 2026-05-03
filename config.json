@@ -31,5 +31,17 @@
   },
   "default_limit": 20,
   "output_dir": "./output",
-  "separator": "§"
+  "separator": "§",
+  "video": {
+    "items_per_category": 5,
+    "categories_order": ["activites_royales", "politique", "social", "economie"],
+    "output_dir": "./bande-news-video/videos",
+    "ticker": {
+      "band_height": 140,
+      "font_size": 42,
+      "separator": "    ●    ",
+      "pixels_per_second": 40,
+      "gap_between_languages": 5
+    }
+  }
 }
