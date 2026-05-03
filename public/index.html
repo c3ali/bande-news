@@ -527,37 +527,54 @@ function parseSnrtHtml(html) {
       try {
         if (currentSource === "snrt") {
           const catKeys = Object.keys(SNRT_CATEGORIES);
-          btn.innerHTML = '<span class="spinner"></span> SNRT — جلب الأخبار...';
-          showToast("📡 SNRTnews: جاري الاتصال بالخادم...");
+          btn.innerHTML = '<span class="spinner"></span> SNRTnews — جلب الأخبار...';
+          showToast("📡 SNRTnews: جاري الجلب...");
 
-          try {
-            const res = await fetch("/api/snrt/fetch?category=all&limit=20");
-            const data = await res.json();
-            if (!data.success) throw new Error(data.error || "API error");
+          let allArticles = [];
 
-            for (const k of catKeys) {
-              categories[k] = [];
-            }
+          const snrtProxies = [
+            (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+            (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+            (u) => `https://web.archive.org/web/${u}`,
+          ];
 
-            for (const a of data.articles) {
-              const catKey = a.category || "general";
-              if (!categories[catKey]) categories[catKey] = [];
-              const cat = SNRT_CATEGORIES[catKey] || { label: catKey, label_fr: catKey };
-              categories[catKey].push({
-                id: categories[catKey].length + 1,
-                title: a.title,
-                date: a.date,
-                category: catKey,
-                category_label: cat.label,
-                category_label_fr: cat.label_fr,
-              });
-            }
+          let snrtHtml = null;
+          for (const makeProxyUrl of snrtProxies) {
+            if (snrtHtml) break;
+            try {
+              btn.innerHTML = `<span class="spinner"></span> SNRTnews — ${makeProxyUrl("https://snrtnews.com").substring(0, 50)}...`;
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), 15000);
+              const res = await fetch(makeProxyUrl("https://snrtnews.com"), { signal: controller.signal });
+              clearTimeout(timer);
+              if (!res.ok) continue;
+              const html = await res.text();
+              if (html.length > 1000 && html.includes("آخر الأخبار") && !html.includes("Just a moment")) {
+                snrtHtml = html;
+              }
+            } catch {}
+          }
 
-            showToast(`✅ ${data.total} خبر من SNRTnews`);
-          } catch (err) {
-            errors.push({ category: "all", error: err.message });
-            showToast("❌ SNRT: " + err.message);
+          if (!snrtHtml) {
+            showToast("❌ SNRTnews:فشل الجلب (عدم الاتصال أو حجب)");
             for (const k of catKeys) categories[k] = [];
+          } else {
+            allArticles = parseSnrtHtml(snrtHtml);
+            const byCat = {};
+            for (const a of allArticles) {
+              if (!byCat[a.category]) byCat[a.category] = [];
+              byCat[a.category].push(a);
+            }
+
+            for (const catKey of catKeys) {
+              const cat = SNRT_CATEGORIES[catKey];
+              const arts = byCat[catKey] || [];
+              categories[catKey] = arts.slice(0, 20).map((a, idx) => ({
+                id: idx + 1, title: a.title, date: a.date, category: catKey,
+                category_label: cat.label, category_label_fr: cat.label_fr,
+              }));
+            }
+            showToast(`✅ ${allArticles.length} خبر من SNRTnews`);
           }
         } else {
           const catKeys = Object.keys(CATEGORIES);
