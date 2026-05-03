@@ -9,7 +9,10 @@
     "server": "node src/server.js",
     "collect": "node src/index.js",
     "test": "node --test src/test/*.test.js",
-    "video": "node src/generate-video.js"
+    "video": "node src/generate-video.js",
+    "snrt": "node src/snrt-collect.js",
+    "snrt-test": "node src/test-snrt.js",
+    "snrt-api": "node src/snrt-fetcher.js"
   },
   "dependencies": {
     "express": "^5.2.1",

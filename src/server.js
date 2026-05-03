@@ -14,6 +14,8 @@ const CACHE = new Map();
 app.use(express.json({ limit: "5mb" }));
 app.use(express.static(resolve(__dirname, "../public")));
 
+import { fetchSnrtNews } from "./snrt-fetcher.js";
+
 app.use("/api/import", (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -430,6 +432,33 @@ app.post("/api/export", (req, res) => {
   writeFileSync(jsonPath, JSON.stringify(jsonContent, null, 2), "utf-8");
 
   res.json({ success: true, txtFile: txtPath, jsonFile: jsonPath, content: txtContent });
+});
+
+app.get("/api/snrt/categories", (req, res) => {
+  const categories = {
+    activites_royales: { key: "activites_royales", label: "الأنشطة الملكية", label_fr: "Activités royales" },
+    activites_princieres: { key: "activites_princieres", label: "الأنشطة الأميرية", label_fr: "Activités princières" },
+    politique: { key: "politique", label: "سياسة", label_fr: "Politique" },
+    sport: { key: "sport", label: "رياضة", label_fr: "Sport" },
+    social: { key: "social", label: "مجتمع", label_fr: "Société" },
+    economie: { key: "economie", label: "اقتصاد", label_fr: "Économie" },
+    culture: { key: "culture", label: "فن و ثقافة", label_fr: "Culture" },
+    monde: { key: "monde", label: "عالم", label_fr: "Monde" },
+    technologie: { key: "technologie", label: "تكنولوجيا", label_fr: "Technologie" },
+    afrique: { key: "afrique", label: "إفريقيا", label_fr: "Afrique" },
+  };
+  res.json({ success: true, source: "SNRTnews", categories: Object.values(categories) });
+});
+
+app.get("/api/snrt/fetch", async (req, res) => {
+  try {
+    const category = req.query.category || "all";
+    const limit = parseInt(req.query.limit) || config.default_limit || 20;
+    const articles = await fetchSnrtNews(category, limit);
+    res.json({ success: true, source: "SNRTnews", category, total: articles.length, articles });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.get("/api/debug", async (req, res) => {
