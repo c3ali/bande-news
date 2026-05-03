@@ -348,16 +348,16 @@
     };
 
     const SNRT_CATEGORIES = {
-      activites_royales: { label: "الأنشطة الملكية", label_fr: "Activités royales" },
-      activites_princieres: { label: "الأنشطة الأميرية", label_fr: "Activités princières" },
-      politique: { label: "سياسة", label_fr: "Politique" },
-      sport: { label: "رياضة", label_fr: "Sport" },
-      social: { label: "مجتمع", label_fr: "Société" },
-      economie: { label: "اقتصاد", label_fr: "Économie" },
-      culture: { label: "فن و ثقافة", label_fr: "Culture" },
-      monde: { label: "عالم", label_fr: "Monde" },
-      technologie: { label: "تكنولوجيا", label_fr: "Technologie" },
-      afrique: { label: "إفريقيا", label_fr: "Afrique" },
+      activites_royales: { label: "الأنشطة الملكية", label_fr: "Activités royales", url: "/thematique/الأنشطة-الملكية" },
+      activites_princieres: { label: "الأنشطة الأميرية", label_fr: "Activités princières", url: "/thematique/الأنشطة-الأميرية" },
+      politique: { label: "سياسة", label_fr: "Politique", url: "/thematique/سياسة" },
+      sport: { label: "رياضة", label_fr: "Sport", url: "/thematique/رياضة" },
+      social: { label: "مجتمع", label_fr: "Société", url: "/thematique/مجتمع" },
+      economie: { label: "اقتصاد", label_fr: "Économie", url: "/thematique/اقتصاد" },
+      culture: { label: "فن و ثقافة", label_fr: "Culture", url: "/thematique/فن-وثقافة" },
+      monde: { label: "عالم", label_fr: "Monde", url: "/thematique/عالم" },
+      technologie: { label: "تكنولوجيا", label_fr: "Technologie", url: "/thematique/تكنولوجيا" },
+      afrique: { label: "إفريقيا", label_fr: "Afrique", url: "/thematique/إفريقيا" },
     };
 
     const SNRT_CAT_MAP = {
@@ -373,25 +373,56 @@
       "إفريقيا": "afrique",
     };
 
-function parseSnrtHtml(html) {
+function parseSnrtCategoryPage(html, catKey) {
       const articles = [];
       const seen = new Set();
 
-      const blocks = html.split(/(\d{2}\/\d{2}\/\d{4} - \d{2}:\d{2})/);
-      for (let i = 1; i < blocks.length; i += 2) {
-        const timeStr = blocks[i];
-        const contentBlock = blocks[i + 1] || "";
+      const dateBlocks = html.split(/(\d{2}\/\d{2}\/\d{4} - \d{2}:\d{2})/);
+
+      for (let i = 1; i < dateBlocks.length; i += 2) {
+        const timeStr = dateBlocks[i];
+        const contentBlock = dateBlocks[i + 1] || "";
         const dp = timeStr.match(/(\d{2})\/(\d{2})\/(\d{4}) - (\d{2}:\d{2})/);
         if (!dp) continue;
         const date = `${dp[3]}-${dp[2]}T${dp[4]}:00`;
 
-        const cm = contentBlock.match(/>([^<]{4,30})<\//);
-        let cat = "general";
-        if (cm) {
-          const rawCat = cm[1].trim();
-          for (const [ar, en] of Object.entries(SNRT_CAT_MAP)) {
-            if (rawCat.includes(ar)) { cat = en; break; }
+        const text = contentBlock.replace(/<[^>]*>/g, "").replace(/ /g, " ").replace(/"/g, '"').replace(/&/g, "&").replace(/\s+/g, " ").trim();
+        const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
+
+        let title = "";
+        for (const line of lines) {
+          const clean = line.trim();
+          if (clean.length > 15 && clean.length < 250
+            && !clean.match(/^\d{2}\/\d{2}\/\d{4}/)
+            && !clean.match(/^\d{2}:\d{2}$/)
+            && !SNRT_CAT_MAP[clean]
+            && clean !== "آخر الأخبار"
+            && clean !== "مختصرات"
+            && clean !== "أخبار"
+            && clean !== "فيديوهات"
+            && clean !== "ملف الشهر"
+            && clean !== "الأكثرقراءة"
+            && clean !== "أخر الفيديوهات"
+            && clean !== "Pagination"
+            && clean !== "الصفحة"
+            && !clean.match(/^Current page/)
+            && !clean.match(/^Next page/)
+            && !clean.match(/^Last page/)
+          ) {
+            title = clean;
+            break;
           }
+        }
+
+        const key = title.substring(0, 50);
+        if (title.length > 15 && !seen.has(key)) {
+          seen.add(key);
+          articles.push({ title, date, category: catKey });
+        }
+      }
+
+      return articles;
+    }
         }
 
         const text = contentBlock.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
@@ -530,52 +561,50 @@ function parseSnrtHtml(html) {
           btn.innerHTML = '<span class="spinner"></span> SNRTnews — جلب الأخبار...';
           showToast("📡 SNRTnews: جاري الجلب...");
 
-          let allArticles = [];
-
           const snrtProxies = [
             (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
             (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-            (u) => `https://web.archive.org/web/${u}`,
           ];
 
-          let snrtHtml = null;
-          for (const makeProxyUrl of snrtProxies) {
-            if (snrtHtml) break;
-            try {
-              btn.innerHTML = `<span class="spinner"></span> SNRTnews — ${makeProxyUrl("https://snrtnews.com").substring(0, 50)}...`;
-              const controller = new AbortController();
-              const timer = setTimeout(() => controller.abort(), 15000);
-              const res = await fetch(makeProxyUrl("https://snrtnews.com"), { signal: controller.signal });
-              clearTimeout(timer);
-              if (!res.ok) continue;
-              const html = await res.text();
-              if (html.length > 1000 && html.includes("آخر الأخبار") && !html.includes("Just a moment")) {
-                snrtHtml = html;
-              }
-            } catch {}
-          }
+          for (const catKey of catKeys) {
+            const cat = SNRT_CATEGORIES[catKey];
+            const snrtUrl = `https://snrtnews.com${cat.url}`;
+            btn.innerHTML = `<span class="spinner"></span> SNRT — ${cat.label_fr} (${catKeys.indexOf(catKey) + 1}/${catKeys.length})...`;
+            showToast(`📡 SNRT: ${cat.label_fr}...`);
 
-          if (!snrtHtml) {
-            showToast("❌ SNRTnews:فشل الجلب (عدم الاتصال أو حجب)");
-            for (const k of catKeys) categories[k] = [];
-          } else {
-            allArticles = parseSnrtHtml(snrtHtml);
-            const byCat = {};
-            for (const a of allArticles) {
-              if (!byCat[a.category]) byCat[a.category] = [];
-              byCat[a.category].push(a);
+            let catHtml = null;
+            for (const makeProxyUrl of snrtProxies) {
+              if (catHtml) break;
+              try {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 15000);
+                const res = await fetch(makeProxyUrl(snrtUrl), { signal: controller.signal });
+                clearTimeout(timer);
+                if (!res.ok) continue;
+                const html = await res.text();
+                if (html.length > 1000 && (html.includes("الأنشطة الملكية") || html.includes("سياسة") || html.includes("رياضة") || html.includes("مجتمع") || html.includes("اقتصاد") || html.includes("فن و ثقافة") || html.includes("عالم") || html.includes("تكنولوجيا") || html.includes("إفريقيا") || html.includes("الأنشطة الأميرية"))) {
+                  catHtml = html;
+                }
+              } catch {}
             }
 
-            for (const catKey of catKeys) {
-              const cat = SNRT_CATEGORIES[catKey];
-              const arts = byCat[catKey] || [];
-              categories[catKey] = arts.slice(0, 20).map((a, idx) => ({
+            if (!catHtml) {
+              categories[catKey] = [];
+            } else {
+              const articles = parseSnrtCategoryPage(catHtml, catKey);
+              categories[catKey] = articles.slice(0, 20).map((a, idx) => ({
                 id: idx + 1, title: a.title, date: a.date, category: catKey,
                 category_label: cat.label, category_label_fr: cat.label_fr,
               }));
             }
-            showToast(`✅ ${allArticles.length} خبر من SNRTnews`);
+
+            if (catKeys.indexOf(catKey) < catKeys.length - 1) {
+              await new Promise(r => setTimeout(r, 500));
+            }
           }
+
+          const total = Object.values(categories).reduce((s, a) => s + a.length, 0);
+          showToast(`✅ ${total} خبر من SNRTnews`);
         } else {
           const catKeys = Object.keys(CATEGORIES);
           for (let i = 0; i < catKeys.length; i++) {
