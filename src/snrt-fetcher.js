@@ -41,27 +41,63 @@ export async function fetchSnrtNews(targetCategory = "all", limit = 20) {
 
   console.log(`\n📡 SNRTnews — Récupération de la page...\n`);
 
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": ua,
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-      "Accept-Language": "ar,fr-FR,fr;q=0.9,en;q=0.7",
-      "Accept-Encoding": "gzip, deflate, br",
-      "DNT": "1",
-      "Connection": "keep-alive",
-      "Upgrade-Insecure-Requests": "1",
-      "Sec-Fetch-Dest": "document",
-      "Sec-Fetch-Mode": "navigate",
-      "Sec-Fetch-Site": "none",
-      "Sec-Fetch-User": "?1",
+  let html = null;
+  const methods = [
+    async () => {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": ua,
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+          "Accept-Language": "ar,fr-FR,fr;q=0.9,en;q=0.7",
+          "Accept-Encoding": "gzip, deflate, br",
+          "DNT": "1",
+          "Connection": "keep-alive",
+          "Upgrade-Insecure-Requests": "1",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "none",
+          "Sec-Fetch-User": "?1",
+        },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const t = await res.text();
+      if (t.length < 500) throw new Error("Response too short");
+      return t;
     },
-  });
+    async () => {
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
+      if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+      const t = await res.text();
+      if (t.length < 500) throw new Error("Proxy response too short");
+      return t;
+    },
+    async () => {
+      const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`;
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
+      if (!res.ok) throw new Error(`CodeTabs HTTP ${res.status}`);
+      const t = await res.text();
+      if (t.length < 500) throw new Error("CodeTabs response too short");
+      return t;
+    },
+  ];
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  const errors = [];
+  for (const method of methods) {
+    try {
+      html = await method();
+      if (html && html.length > 500 && html.includes("آخر الأخبار")) break;
+      html = null;
+    } catch (e) {
+      errors.push(e.message);
+    }
   }
 
-  const html = await response.text();
+  if (!html) {
+    throw new Error(`All methods failed: ${errors.join(" | ")}`);
+  }
+
+  console.log(`✅ HTML récupéré (${html.length} caractères)\n`);
   const articles = [];
   const seen = new Set();
 

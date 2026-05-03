@@ -373,11 +373,11 @@
       "إفريقيا": "afrique",
     };
 
-    function parseSnrtHtml(html) {
+function parseSnrtHtml(html) {
       const articles = [];
       const seen = new Set();
-      const blocks = html.split(/(\d{2}\/\d{2}\/\d{4} - \d{2}:\d{2})/);
 
+      const blocks = html.split(/(\d{2}\/\d{2}\/\d{4} - \d{2}:\d{2})/);
       for (let i = 1; i < blocks.length; i += 2) {
         const timeStr = blocks[i];
         const contentBlock = blocks[i + 1] || "";
@@ -387,15 +387,45 @@
 
         const cm = contentBlock.match(/>([^<]{4,30})<\//);
         let cat = "general";
-        if (cm && SNRT_CAT_MAP[cm[1].trim()]) cat = SNRT_CAT_MAP[cm[1].trim()];
-
-        const lines = contentBlock.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-        let title = "";
-        for (const line of lines) {
-          const clean = line.replace(/<[^>]*>/g, "").trim();
-          if (clean.length > 15 && !clean.match(/^\d{2}\/\d{2}\/\d{4}/) && !SNRT_CAT_MAP[clean] && clean !== "آخر الأخبار" && clean !== "مختصرات") {
-            title = clean; break;
+        if (cm) {
+          const rawCat = cm[1].trim();
+          for (const [ar, en] of Object.entries(SNRT_CAT_MAP)) {
+            if (rawCat.includes(ar)) { cat = en; break; }
           }
+        }
+
+        const text = contentBlock.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+        const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+        let title = text;
+        for (const line of lines) {
+          if (line.length > 15
+            && !line.match(/^\d{2}\/\d{2}\/\d{4}/)
+            && !line.match(/^0?\d:\d{2}$/)
+            && !SNRT_CAT_MAP[line]
+            && line !== "آخر الأخبار"
+            && line !== "مختصرات"
+            && line !== "الأنشطة الملكية"
+            && line !== "الأنشطة الأميرية"
+            && line !== "أخبار"
+            && line !== "فيديوهات"
+            && line !== "ملف الشهر"
+            && line !== "الأكثرقراءة"
+            && line !== "أخر الفيديوهات"
+            && line.length < 200
+          ) {
+            title = line; break;
+          }
+        }
+
+        const key = title.substring(0, 40);
+        if (title.length > 15 && !seen.has(key)) {
+          seen.add(key);
+          articles.push({ title, date, category: cat });
+        }
+      }
+
+      return articles;
+    }
         }
 
         if (title && !seen.has(title)) {
@@ -506,49 +536,37 @@
       try {
         if (currentSource === "snrt") {
           const catKeys = Object.keys(SNRT_CATEGORIES);
-          for (let i = 0; i < catKeys.length; i++) {
-            const catKey = catKeys[i];
-            const cat = SNRT_CATEGORIES[catKey];
-            btn.innerHTML = `<span class="spinner"></span> SNRT — ${cat.label_fr} (${i + 1}/${catKeys.length})...`;
+          btn.innerHTML = '<span class="spinner"></span> SNRT — جلب الأخبار...';
+          showToast("📡 SNRTnews: جاري الاتصال بالخادم...");
 
-            try {
-              const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent("https://snrtnews.com")}`;
-              const res = await fetch(proxyUrl);
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              const html = await res.text();
+          try {
+            const res = await fetch("/api/snrt/fetch?category=all&limit=20");
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || "API error");
 
-              const articles = parseSnrtHtml(html);
-              const filtered = articles.filter(a => a.category === catKey || catKey === "all");
-              const mapped = filtered.slice(0, 20).map((a, idx) => ({
-                id: idx + 1,
+            for (const k of catKeys) {
+              categories[k] = [];
+            }
+
+            for (const a of data.articles) {
+              const catKey = a.category || "general";
+              if (!categories[catKey]) categories[catKey] = [];
+              const cat = SNRT_CATEGORIES[catKey] || { label: catKey, label_fr: catKey };
+              categories[catKey].push({
+                id: categories[catKey].length + 1,
                 title: a.title,
                 date: a.date,
                 category: catKey,
                 category_label: cat.label,
                 category_label_fr: cat.label_fr,
-              }));
-
-              if (i === 0) {
-                for (const k of catKeys) categories[k] = [];
-              }
-              categories[catKey] = mapped.length ? mapped : [];
-            } catch (err) {
-              errors.push({ category: catKey, error: err.message });
-              if (i === 0) for (const k of catKeys) categories[k] = [];
-              categories[catKey] = [];
+              });
             }
-          }
 
-          if (Object.values(categories).every(a => a.length === 0)) {
-            const res = await fetch("/api/snrt/fetch?category=all&limit=20");
-            const data = await res.json();
-            if (data.success) {
-              for (const k of catKeys) categories[k] = [];
-              for (const a of data.articles) {
-                if (!categories[a.category]) categories[a.category] = [];
-                categories[a.category].push({ id: categories[a.category].length + 1, title: a.title, date: a.date, category: a.category, category_label: SNRT_CATEGORIES[a.category]?.label_fr || a.category, category_label_fr: SNRT_CATEGORIES[a.category]?.label_fr || a.category });
-              }
-            }
+            showToast(`✅ ${data.total} خبر من SNRTnews`);
+          } catch (err) {
+            errors.push({ category: "all", error: err.message });
+            showToast("❌ SNRT: " + err.message);
+            for (const k of catKeys) categories[k] = [];
           }
         } else {
           const catKeys = Object.keys(CATEGORIES);
