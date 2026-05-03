@@ -123,9 +123,13 @@
   <div class="loading-bar" id="loadingBar"></div>
   <header>
     <div class="logo">
-      <h1>باند نيوز<small>Bande News — mapnews.ma</small></h1>
+      <h1>باند نيوز<small>Bande News</small></h1>
     </div>
     <div class="header-actions">
+      <select id="sourceSelect" style="padding:6px 12px;border-radius:6px;border:none;font-size:0.85rem;font-weight:600;background:rgba(255,255,255,0.15);color:white;" onchange="switchSource()">
+        <option value="map" style="color:#333;background:white;">📰 MAP (mapnews.ma)</option>
+        <option value="snrt" style="color:#333;background:white;">📡 SNRTnews</option>
+      </select>
       <a href="/collect.html" class="btn btn-outline" style="text-decoration:none;">📱 جمع محلي</a>
       <button class="btn btn-outline" onclick="loadCollectes()">📂 الأرشيف</button>
     </div>
@@ -343,6 +347,65 @@
       economie: { label: "إقتصاد", label_fr: "Économie", url: "/ar/actualites/economie" },
     };
 
+    const SNRT_CATEGORIES = {
+      activites_royales: { label: "الأنشطة الملكية", label_fr: "Activités royales" },
+      activites_princieres: { label: "الأنشطة الأميرية", label_fr: "Activités princières" },
+      politique: { label: "سياسة", label_fr: "Politique" },
+      sport: { label: "رياضة", label_fr: "Sport" },
+      social: { label: "مجتمع", label_fr: "Société" },
+      economie: { label: "اقتصاد", label_fr: "Économie" },
+      culture: { label: "فن و ثقافة", label_fr: "Culture" },
+      monde: { label: "عالم", label_fr: "Monde" },
+      technologie: { label: "تكنولوجيا", label_fr: "Technologie" },
+      afrique: { label: "إفريقيا", label_fr: "Afrique" },
+    };
+
+    const SNRT_CAT_MAP = {
+      "الأنشطة الملكية": "activites_royales",
+      "الأنشطة الأميرية": "activites_princieres",
+      "سياسة": "politique",
+      "رياضة": "sport",
+      "مجتمع": "social",
+      "اقتصاد": "economie",
+      "فن و ثقافة": "culture",
+      "عالم": "monde",
+      "تكنولوجيا": "technologie",
+      "إفريقيا": "afrique",
+    };
+
+    function parseSnrtHtml(html) {
+      const articles = [];
+      const seen = new Set();
+      const blocks = html.split(/(\d{2}\/\d{2}\/\d{4} - \d{2}:\d{2})/);
+
+      for (let i = 1; i < blocks.length; i += 2) {
+        const timeStr = blocks[i];
+        const contentBlock = blocks[i + 1] || "";
+        const dp = timeStr.match(/(\d{2})\/(\d{2})\/(\d{4}) - (\d{2}:\d{2})/);
+        if (!dp) continue;
+        const date = `${dp[3]}-${dp[2]}T${dp[4]}:00`;
+
+        const cm = contentBlock.match(/>([^<]{4,30})<\//);
+        let cat = "general";
+        if (cm && SNRT_CAT_MAP[cm[1].trim()]) cat = SNRT_CAT_MAP[cm[1].trim()];
+
+        const lines = contentBlock.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+        let title = "";
+        for (const line of lines) {
+          const clean = line.replace(/<[^>]*>/g, "").trim();
+          if (clean.length > 15 && !clean.match(/^\d{2}\/\d{2}\/\d{4}/) && !SNRT_CAT_MAP[clean] && clean !== "آخر الأخبار" && clean !== "مختصرات") {
+            title = clean; break;
+          }
+        }
+
+        if (title && !seen.has(title)) {
+          seen.add(title);
+          articles.push({ title, date, category: cat });
+        }
+      }
+      return articles;
+    }
+
     const BASE_URL = "https://www.mapnews.ma";
     const TITMIMA = "\u062A\u0640\u062A\u0640\u0645\u0640\u0629";
 
@@ -415,6 +478,22 @@
       return null;
     }
 
+    let currentSource = "map";
+
+    function switchSource() {
+      currentSource = document.getElementById("sourceSelect").value;
+      categoriesData = {};
+      selectedIds = {};
+      activeTab = null;
+      document.getElementById("emptyState").style.display = "";
+      document.getElementById("panels").innerHTML = "";
+      document.getElementById("tabs").innerHTML = "";
+      updateCounter();
+      if (currentSource === "snrt") {
+        fetchAllCategories();
+      }
+    }
+
     async function fetchAllCategories() {
       const btn = document.getElementById("btnFetchAll");
       btn.disabled = true;
@@ -425,72 +504,103 @@
       let errors = [];
 
       try {
-        const catKeys = Object.keys(CATEGORIES);
-        for (let i = 0; i < catKeys.length; i++) {
-          const catKey = catKeys[i];
-          const cat = CATEGORIES[catKey];
-          btn.innerHTML = `<span class="spinner"></span> ${cat.label_fr} (${i + 1}/${catKeys.length})...`;
+        if (currentSource === "snrt") {
+          const catKeys = Object.keys(SNRT_CATEGORIES);
+          for (let i = 0; i < catKeys.length; i++) {
+            const catKey = catKeys[i];
+            const cat = SNRT_CATEGORIES[catKey];
+            btn.innerHTML = `<span class="spinner"></span> SNRT — ${cat.label_fr} (${i + 1}/${catKeys.length})...`;
 
-          try {
-            const url = `${BASE_URL}${cat.url}`;
-            let html = await fetchViaCorsProxy(url);
+            try {
+              const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent("https://snrtnews.com")}`;
+              const res = await fetch(proxyUrl);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const html = await res.text();
 
-            let articles = html ? parseArticles(html, catKey) : [];
+              const articles = parseSnrtHtml(html);
+              const filtered = articles.filter(a => a.category === catKey || catKey === "all");
+              const mapped = filtered.slice(0, 20).map((a, idx) => ({
+                id: idx + 1,
+                title: a.title,
+                date: a.date,
+                category: catKey,
+                category_label: cat.label,
+                category_label_fr: cat.label_fr,
+              }));
 
-            if (articles.length > 0 && articles.length < 20) {
-              const pageHtml = await fetchViaCorsProxy(`${url}?page=1`);
-              if (pageHtml) {
-                const more = parseArticles(pageHtml, catKey);
-                const seen = new Set(articles.map(a => a.title));
-                for (const a of more) {
-                  if (!seen.has(a.title)) { seen.add(a.title); articles.push(a); }
-                }
+              if (i === 0) {
+                for (const k of catKeys) categories[k] = [];
+              }
+              categories[catKey] = mapped.length ? mapped : [];
+            } catch (err) {
+              errors.push({ category: catKey, error: err.message });
+              if (i === 0) for (const k of catKeys) categories[k] = [];
+              categories[catKey] = [];
+            }
+          }
+
+          if (Object.values(categories).every(a => a.length === 0)) {
+            const res = await fetch("/api/snrt/fetch?category=all&limit=20");
+            const data = await res.json();
+            if (data.success) {
+              for (const k of catKeys) categories[k] = [];
+              for (const a of data.articles) {
+                if (!categories[a.category]) categories[a.category] = [];
+                categories[a.category].push({ id: categories[a.category].length + 1, title: a.title, date: a.date, category: a.category, category_label: SNRT_CATEGORIES[a.category]?.label_fr || a.category, category_label_fr: SNRT_CATEGORIES[a.category]?.label_fr || a.category });
               }
             }
-
-            categories[catKey] = articles.slice(0, 20).map((a, idx) => ({
-              id: idx + 1,
-              title: a.title,
-              date: a.date,
-              category: catKey,
-              category_label: cat.label,
-              category_label_fr: cat.label_fr,
-            }));
-          } catch (err) {
-            errors.push({ category: catKey, error: err.message });
-            categories[catKey] = [];
           }
-        }
+        } else {
+          const catKeys = Object.keys(CATEGORIES);
+          for (let i = 0; i < catKeys.length; i++) {
+            const catKey = catKeys[i];
+            const cat = CATEGORIES[catKey];
+            btn.innerHTML = `<span class="spinner"></span> ${cat.label_fr} (${i + 1}/${catKeys.length})...`;
 
-        if (Object.values(categories).every(a => a.length === 0)) {
-          const res = await fetch("/api/fetch-all?limit=20");
-          const data = await res.json();
-          if (data.success) categories = data.categories;
-          else throw new Error(data.error || "Server fallback also failed");
+            try {
+              const url = `${BASE_URL}${cat.url}`;
+              let html = await fetchViaCorsProxy(url);
+              let articles = html ? parseArticles(html, catKey) : [];
+
+              if (articles.length > 0 && articles.length < 20) {
+                const pageHtml = await fetchViaCorsProxy(`${url}?page=1`);
+                if (pageHtml) {
+                  const more = parseArticles(pageHtml, catKey);
+                  const seen = new Set(articles.map(a => a.title));
+                  for (const a of more) if (!seen.has(a.title)) { seen.add(a.title); articles.push(a); }
+                }
+              }
+
+              categories[catKey] = articles.slice(0, 20).map((a, idx) => ({
+                id: idx + 1, title: a.title, date: a.date, category: catKey,
+                category_label: cat.label, category_label_fr: cat.label_fr,
+              }));
+            } catch (err) {
+              errors.push({ category: catKey, error: err.message });
+              categories[catKey] = [];
+            }
+          }
+
+          if (Object.values(categories).every(a => a.length === 0)) {
+            const res = await fetch("/api/fetch-all?limit=20");
+            const data = await res.json();
+            if (data.success) categories = data.categories;
+          }
         }
 
         categoriesData = categories;
         for (const k in categories) {
           selectedIds[k] = new Set();
-          categoryLabels[k] = categories[k]?.[0]?.category_label_fr || CATEGORIES[k]?.label_fr || k;
+          const src = currentSource === "snrt" ? SNRT_CATEGORIES : CATEGORIES;
+          categoryLabels[k] = categories[k]?.[0]?.category_label_fr || src[k]?.label_fr || k;
         }
-        activeTab = Object.keys(categoriesData)[0] || null;
+        activeTab = Object.keys(categoriesData).find(k => categoriesData[k]?.length) || Object.keys(categoriesData)[0] || null;
         document.getElementById("emptyState").style.display = "none";
         buildTabs();
 
         const total = Object.values(categories).reduce((s, a) => s + a.length, 0);
         showToast(`✅ ${total} خبر من ${Object.keys(categories).length} rubriques`);
         if (errors.length) showToast(`⚠️ ${errors.length} erreurs`);
-
-        if (total > 0) {
-          try {
-            await fetch("/api/import", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ categories }),
-            });
-          } catch {}
-        }
       } catch (err) {
         showToast("❌ " + err.message);
       }
@@ -788,6 +898,10 @@
         document.getElementById("btnPush").style.display = "inline-flex";
       }
     }
+
+    addEventListener("source", function(e) {
+      showToast(`📡 Source: ${e.detail === "snrt" ? "SNRTnews" : "MAP (mapnews.ma)"}`);
+    });
 
     (async () => {
       try {
