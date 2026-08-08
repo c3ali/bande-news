@@ -27,6 +27,16 @@ function copyRecursive(src, dest) {
 copyRecursive(srcDir, destDir);
 console.log('✅ Fichiers copiés de public/ vers www/');
 
+// Copier offline.html (spécifique mobile) vers www/
+const offlineSrc = join(__dirname, 'offline.html');
+const offlineDest = join(destDir, 'offline.html');
+if (existsSync(offlineSrc)) {
+  copyFileSync(offlineSrc, offlineDest);
+  console.log('✅ offline.html copié dans www/');
+} else {
+  console.log('⚠️ offline.html non trouvé dans mobile/');
+}
+
 // Créer le fichier de configuration API pour l'app mobile
 const configJs = `// Configuration auto-générée pour l'app mobile Capacitor
 window.API_BASE_URL = window.API_BASE_URL || '';
@@ -149,6 +159,11 @@ const menuHtml = `<!DOCTYPE html>
     <a href="collect.html" class="menu-btn">
       <span class="icon">📥</span>
       <span class="label">Collecte</span>
+      <span class="arrow">›</span>
+    </a>
+    <a href="offline.html" class="menu-btn">
+      <span class="icon">📴</span>
+      <span class="label">Mode Hors Ligne</span>
       <span class="arrow">›</span>
     </a>
   </div>
