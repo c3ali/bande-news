@@ -28,7 +28,7 @@ copyRecursive(srcDir, destDir);
 console.log('✅ Fichiers copiés de public/ vers www/');
 
 // Copier offline.html et standalone.html (spécifiques mobile) vers www/
-const mobileFiles = ['offline.html', 'standalone.html'];
+const mobileFiles = ['offline.html', 'standalone.html', 'pwa.html', 'pwa-v2.html', 'manifest.json', 'sw.js'];
 for (const file of mobileFiles) {
   const src = join(__dirname, file);
   const dest = join(destDir, file);

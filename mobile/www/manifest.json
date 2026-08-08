@@ -1,0 +1,25 @@
+{
+  "name": "Bande News",
+  "short_name": "BandeNews",
+  "description": "Application autonome de collecte et traduction d'actualités marocaines",
+  "start_url": "./pwa-v2.html",
+  "display": "standalone",
+  "background_color": "#1a5c2a",
+  "theme_color": "#1a5c2a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%231a5c2a' rx='32'/%3E%3Ctext x='96' y='130' text-anchor='middle' font-size='110'%3E📰%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%231a5c2a' rx='64'/%3E%3Ctext x='256' y='340' text-anchor='middle' font-size='280'%3E📰%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["news", "productivity"],
+  "lang": "ar",
+  "dir": "rtl"
+}

@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1a5c2a">
+  <link rel="manifest" href="manifest.json">
+  <title>باند نيوز — Bande News (Autonome)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #1a5c2a; --primary-light: #2a8a42; --primary-dark: #0f3d1a;
+      --accent: #c1272d; --bg: #f5f5f0; --card: #ffffff;
+      --text: #1a1a1a; --text-secondary: #555; --border: #ddd;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08); --radius: 8px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    header {
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white;
+      padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15); position: sticky; top: 0; z-index: 100;
+    }
+    header .logo { display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.3rem; font-weight: 700; }
+    header h1 small { font-size: 0.72rem; font-weight: 400; opacity: 0.8; display: block; direction: ltr; }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 8px 18px; border: none; border-radius: var(--radius); cursor: pointer;
+      font-size: 0.85rem; font-weight: 600; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn:active { transform: scale(0.97); } .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-light); }
+    .btn-accent { background: var(--accent); color: white; }
+    .btn-accent:hover:not(:disabled) { background: #d9353b; }
+    .btn-outline { background: transparent; color: white; border: 1.5px solid rgba(255,255,255,0.5); }
+    .btn-outline:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+    .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
+    .btn-dark { background: #333; color: white; } .btn-dark:hover:not(:disabled) { background: #555; }
+    .btn-blue { background: #2563eb; color: white; } .btn-blue:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-orange { background: #ea580c; color: white; } .btn-orange:hover:not(:disabled) { background: #c2410c; }
+    main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .toolbar .spacer { flex: 1; }
+    .counter { background: var(--primary); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab {
+      padding: 10px 20px; background: #e8e8e3; border: none; border-radius: var(--radius) var(--radius) 0 0;
+      cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.15s; color: var(--text);
+    }
+    .tab:hover { background: #d8d8d3; }
+    .tab.active { background: var(--primary); color: white; }
+    .tab .tab-count { background: rgba(255,255,255,0.3); padding: 1px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 6px; }
+    .tab.active .tab-count { background: rgba(255,255,255,0.25); }
+
+    .category-panel { display: none; }
+    .category-panel.active { display: block; }
+
+    .card {
+      background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+      overflow: hidden; margin-bottom: 6px; transition: all 0.15s; border: 2px solid transparent;
+    }
+    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+    .card.selected { border-color: var(--primary); background: #f0faf3; }
+    .card-header { display: flex; align-items: flex-start; padding: 10px 14px; gap: 10px; }
+    .card-checkbox { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; margin-top: 2px; flex-shrink: 0; }
+    .card-body { flex: 1; min-width: 0; }
+    .card-title { font-size: 0.95rem; line-height: 1.6; cursor: pointer; word-wrap: break-word; }
+    .card-date { font-size: 0.75rem; color: #888; direction: ltr; text-align: right; margin-top: 2px; }
+    .card-actions { display: flex; gap: 3px; flex-shrink: 0; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; visibility: hidden; transition: all 0.2s;
+    }
+    .modal-overlay.active { opacity: 1; visibility: visible; }
+    .modal {
+      background: white; border-radius: 12px; padding: 24px; width: 90%;
+      max-width: 900px; max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3); transform: translateY(20px); transition: transform 0.2s;
+    }
+    .modal-overlay.active .modal { transform: translateY(0); }
+    .modal h2 { font-size: 1.15rem; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+
+    .output-area {
+      width: 100%; min-height: 200px; font-family: 'Consolas', monospace; font-size: 0.88rem;
+      padding: 16px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: #1e1e1e; color: #d4d4d4; direction: ltr; resize: vertical;
+    }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: #333; color: white; padding: 12px 24px; border-radius: var(--radius);
+      font-size: 0.9rem; z-index: 300; transition: transform 0.3s; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+    .empty-state p { font-size: 1rem; margin-bottom: 12px; }
+    .loading-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--primary); z-index: 999; display: none; }
+    .loading-bar.active { display: block; animation: loading 1.5s ease-in-out; }
+    @keyframes loading { 0% { width: 0; } 50% { width: 70%; } 100% { width: 100%; } }
+
+    /* MOBILE RESPONSIVE */
+    @media (max-width: 640px) {
+      header { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+      header h1 { font-size: 1.1rem; }
+      header h1 small { font-size: 0.65rem; }
+      .header-actions { width: 100%; justify-content: flex-end; }
+      main { padding: 12px; }
+      .tab { padding: 8px 12px; font-size: 0.8rem; }
+      .btn { padding: 6px 10px; font-size: 0.78rem; }
+      .card-header { padding: 8px 10px; gap: 8px; }
+      .card-title { font-size: 0.88rem; line-height: 1.5; }
+      .modal { padding: 16px; width: 95%; max-height: 90vh; }
+      .toolbar { gap: 6px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-bar" id="loadingBar"></div>
+  <header>
+    <div class="logo">
+      <h1>باند نيوز<small>Bande News — Mode Autonome</small></h1>
+    </div>
+    <div class="header-actions">
+      <select id="sourceSelect" style="padding:6px 12px;border-radius:6px;border:none;font-size:0.85rem;font-weight:600;background:rgba(255,255,255,0.15);color:white;" onchange="switchSource()">
+        <option value="map" style="color:#333;background:white;">📰 MAP (mapnews.ma)</option>
+        <option value="snrt" style="color:#333;background:white;">📡 SNRTnews</option>
+      </select>
+      <button class="btn btn-outline" onclick="openConfigModal()">⚙️ Config</button>
+    </div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button class="btn btn-primary" id="btnFetchAll" onclick="fetchAllCategories()">📡 جلب كل الأخبار</button>
+      <button class="btn btn-dark" id="btnSelectAll" onclick="toggleSelectAll()" disabled>✅ تحديد الكل</button>
+      <button class="btn btn-accent" id="btnSave" onclick="saveSelection()" disabled>💾 حفظ وترجمة</button>
+      <span class="spacer"></span>
+      <span class="counter" id="counter">0 عنصر</span>
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+    <div id="panels"></div>
+
+    <div class="empty-state" id="emptyState">
+      <p>اضغط على "جلب كل الأخبار" لتحميل آخر العناوين</p>
+      <p style="font-size:0.85rem;opacity:0.7;">Le téléphone fait les requêtes directement aux sites</p>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="translateModal">
+    <div class="modal" style="max-width:95%;">
+      <h2>🌍 الترجمة — AR / FR / EN</h2>
+      <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-blue" id="btnTranslateFR" onclick="autoTranslate('fr')">🇫🇷 ترجمة فرنسي</button>
+        <button class="btn btn-orange" id="btnTranslateEN" onclick="autoTranslate('en')">🇬🇧 ترجمة إنجليزي</button>
+        <span class="spacer"></span>
+        <span id="translateProgress" style="font-size:0.85rem;color:var(--primary);font-weight:600;"></span>
+      </div>
+      <div id="translateContent" style="max-height:60vh;overflow-y:auto;"></div>
+      <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="generateDocument()">📄 إنشاء الوثيقة</button>
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('translateModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="previewModal">
+    <div class="modal">
+      <h2>📄 المعاينة النهائية</h2>
+      <textarea class="output-area" id="outputText"></textarea>
+      <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="copyOutput()">📋 نسخ</button>
+        <button class="btn btn-dark" onclick="downloadTxt()">⬇️ تحميل</button>
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('previewModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="configModal">
+    <div class="modal">
+      <h2>⚙️ Configuration</h2>
+      <div style="margin-bottom:16px;">
+        <label style="font-weight:700;display:block;margin-bottom:6px;">Clé API NanoGPT (pour la traduction)</label>
+        <input type="password" id="nanoKey" placeholder="sk-nano-..." style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-weight:700;display:block;margin-bottom:6px;">Clé ScraperAPI (optionnel, pour contourner les blocages)</label>
+        <input type="password" id="scraperKey" placeholder="" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;">
+      </div>
+      <div style="font-size:0.85rem;color:#666;line-height:1.6;margin-bottom:16px;">
+        <strong>Mode autonome :</strong> le téléphone fait directement les requêtes aux sites d'actualités et à l'API NanoGPT. Aucun serveur requis.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="saveConfig()">💾 Enregistrer</button>
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('configModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ==================== STATE ====================
+    let categoriesData = {};
+    let selectedIds = {};
+    let categoryLabels = {};
+    let activeTab = null;
+    let translating = false;
+    let currentSource = 'map';
+
+    const STORAGE_KEY = 'bn_autonome_data';
+    const CONFIG_KEY = 'bn_autonome_config';
+
+    // Load saved data
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      categoriesData = saved.categoriesData || {};
+      selectedIds = {};
+      for (const k in categoriesData) {
+        selectedIds[k] = new Set();
+      }
+      categoryLabels = saved.categoryLabels || {};
+      activeTab = saved.activeTab || null;
+      if (Object.keys(categoriesData).length) {
+        document.getElementById('emptyState').style.display = 'none';
+        buildTabs();
+      }
+    } catch {}
+
+    // ==================== UI HELPERS ====================
+    function showToast(msg) {
+      const t = document.getElementById('toast'); t.textContent = msg;
+      t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500);
+    }
+    function showLoading() { document.getElementById('loadingBar').classList.add('active'); }
+    function hideLoading() { document.getElementById('loadingBar').classList.remove('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('active'); }));
+
+    function persist() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        categoriesData, categoryLabels, activeTab,
+        savedAt: new Date().toISOString()
+      }));
+    }
+
+    function updateCounter() {
+      let total = 0;
+      for (const k in selectedIds) total += selectedIds[k].size;
+      document.getElementById('counter').textContent = total + ' عنصر';
+      document.getElementById('btnSave').disabled = total === 0;
+      let hasArticles = false;
+      for (const k in categoriesData) if (categoriesData[k]?.length) hasArticles = true;
+      document.getElementById('btnSelectAll').disabled = !hasArticles;
+    }
+
+    function buildTabs() {
+      const tabsEl = document.getElementById('tabs');
+      const panelsEl = document.getElementById('panels');
+      tabsEl.innerHTML = '';
+      panelsEl.innerHTML = '';
+
+      for (const catKey in categoriesData) {
+        const label = categoryLabels[catKey] || catKey;
+        const count = selectedIds[catKey]?.size || 0;
+
+        const tab = document.createElement('button');
+        tab.className = 'tab' + (activeTab === catKey ? ' active' : '');
+        tab.innerHTML = label + ' <span class="tab-count">' + count + '</span>';
+        tab.onclick = () => switchTab(catKey);
+        tabsEl.appendChild(tab);
+
+        const panel = document.createElement('div');
+        panel.className = 'category-panel' + (activeTab === catKey ? ' active' : '');
+        panel.id = 'panel-' + catKey;
+        panel.innerHTML = renderCategoryCards(catKey);
+        panelsEl.appendChild(panel);
+      }
+      updateCounter();
+      persist();
+    }
+
+    function switchTab(catKey) { activeTab = catKey; buildTabs(); }
+
+    function renderCategoryCards(catKey) {
+      const articles = categoriesData[catKey] || [];
+      if (!articles.length) return '<div class="empty-state"><p>لا توجد مقالات</p></div>';
+      return articles.map(a => {
+        const sel = selectedIds[catKey]?.has(a.id);
+        const dateHtml = a.date ? '<div class="card-date">📅 ' + a.date + '</div>' : '';
+        return '<div class="card ' + (sel ? 'selected' : '') + '" data-cat="' + catKey + '" data-id="' + a.id + '">' +
+          '<div class="card-header">' +
+            '<input type="checkbox" class="card-checkbox" ' + (sel ? 'checked' : '') +
+              ' onchange="toggleArticle(\'' + catKey + '\',' + a.id + ')" />' +
+            '<div class="card-body">' +
+              '<div class="card-title" id="title-' + catKey + '-' + a.id + '" dir="rtl">' + (a.title || a.ar || '') + '</div>' +
+              dateHtml +
+            '</div>' +
+            '<div class="card-actions">' +
+              '<button class="btn btn-sm btn-accent" onclick="removeArticle(\'' + catKey + '\',' + a.id + ')">🗑</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function toggleArticle(catKey, id) {
+      if (!selectedIds[catKey]) selectedIds[catKey] = new Set();
+      if (selectedIds[catKey].has(id)) selectedIds[catKey].delete(id);
+      else selectedIds[catKey].add(id);
+      buildTabs();
+    }
+
+    function toggleSelectAll() {
+      const catKey = activeTab;
+      if (!catKey || !categoriesData[catKey]) return;
+      const all = categoriesData[catKey];
+      if (!selectedIds[catKey]) selectedIds[catKey] = new Set();
+      if (selectedIds[catKey].size === all.length) selectedIds[catKey].clear();
+      else all.forEach(a => selectedIds[catKey].add(a.id));
+      buildTabs();
+    }
+
+    function removeArticle(catKey, id) {
+      categoriesData[catKey] = categoriesData[catKey].filter(a => a.id !== id);
+      if (selectedIds[catKey]) selectedIds[catKey].delete(id);
+      categoriesData[catKey].forEach((a, i) => a.id = i + 1);
+      if (!categoriesData[catKey].length) delete categoriesData[catKey];
+      buildTabs();
+    }
+
+    // ==================== CATEGORIES CONFIG ====================
+    const MAP_CATEGORIES = {
+      politique:   { label: 'سياسة', label_fr: 'Politique', url: '/ar/actualites/politique' },
+      sport:       { label: 'رياضة', label_fr: 'Sport', url: '/ar/actualites/sport' },
+      economie:    { label: 'إقتصاد', label_fr: 'Économie', url: '/ar/actualites/economie' },
+      social:      { label: 'مجتمع', label_fr: 'Société', url: '/ar/actualites/societe' },
+      culture:     { label: 'ثقافة', label_fr: 'Culture', url: '/ar/actualites/culture' },
+      monde:       { label: 'عالم', label_fr: 'Monde', url: '/ar/actualites/monde' },
+      technologie: { label: 'تكنولوجيا', label_fr: 'Technologie', url: '/ar/actualites/technologie' },
+      afrique:     { label: 'إفريقيا', label_fr: 'Afrique', url: '/ar/actualites/afrique' },
+    };
+
+    const SNRT_CATEGORIES = {
+      activites_royales: { label: 'الأنشطة الملكية', label_fr: 'Activités royales', url: '/thematique/activites-royales' },
+      activites_princieres: { label: 'الأنشطة الأميرية', label_fr: 'Activités princières', url: '/thematique/activites-princieres' },
+      politique: { label: 'سياسة', label_fr: 'Politique', url: '/thematique/politique' },
+      sport: { label: 'رياضة', label_fr: 'Sport', url: '/thematique/sport' },
+      social: { label: 'مجتمع', label_fr: 'Société', url: '/thematique/societe' },
+      economie: { label: 'اقتصاد', label_fr: 'Économie', url: '/thematique/economie' },
+      culture: { label: 'فن و ثقافة', label_fr: 'Culture', url: '/thematique/culture' },
+      monde: { label: 'عالم', label_fr: 'Monde', url: '/thematique/monde' },
+      technologie: { label: 'تكنولوجيا', label_fr: 'Technologie', url: '/thematique/technologie' },
+      afrique: { label: 'إفريقيا', label_fr: 'Afrique', url: '/thematique/afrique' },
+    };
+
+    const SNRT_CAT_MAP = {
+      'الأنشطة الملكية': 'activites_royales', 'الأنشطة الأميرية': 'activites_princieres',
+      'سياسة': 'politique', 'رياضة': 'sport', 'مجتمع': 'social', 'اقتصاد': 'economie',
+      'فن و ثقافة': 'culture', 'عالم': 'monde', 'تكنولوجيا': 'technologie', 'إفريقيا': 'afrique',
+    };
+
+    const TITMIMA = '\u062A\u0640\u062A\u0640\u0645\u0640\u0629';
+
+    // ==================== PARSERS (identiques au serveur) ====================
+    function decodeHtmlEntities(str) {
+      const el = document.createElement('textarea');
+      el.innerHTML = str;
+      return el.value;
+    }
+
+    function parseMapnewsHtml(html) {
+      const articles = [];
+      const seen = new Set();
+      const re = /<article[^>]*>([\s\S]*?)<\/article>/gi;
+      let m;
+      while ((m = re.exec(html)) !== null) {
+        const art = m[1];
+        const titleMatch = art.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i) || art.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
+        if (!titleMatch) continue;
+        const title = decodeHtmlEntities(titleMatch[1]).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
+        seen.add(title);
+        const dateMatch = art.match(/<time[^>]*>([\s\S]*?)<\/time>/i);
+        const date = dateMatch ? decodeHtmlEntities(dateMatch[1]).replace(/<[^>]*>/g, '').trim() : '';
+        articles.push({ title, date });
+      }
+      return articles;
+    }
+
+    function parseSnrtHtml(html, forcedCategory) {
+      const articles = [];
+      const seen = new Set();
+
+      const flashRe = /<li class="flash-news"[^>]*>[\s\S]*?<div class="date-flashnews">(\d{2}:\d{2})<\/div>[\s\S]*?<h2>([^<]+)<\/h2>[\s\S]*?<h3[^>]*><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h3>[\s\S]*?<\/li>/g;
+      let m;
+      while ((m = flashRe.exec(html)) !== null) {
+        const title = decodeHtmlEntities(m[3]).replace(/\s+/g, ' ').trim();
+        if (!title || title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+        const cat = forcedCategory || SNRT_CAT_MAP[m[2].trim()] || 'general';
+        articles.push({ title, date: m[1], category: cat });
+      }
+
+      const thematicRe = /<div class="holder-thematique-home"[^>]*>[\s\S]*?<div class="date_publication">(\d{2}\/\d{2}\/\d{4}) - (\d{2}:\d{2})<\/div>[\s\S]*?<div class="info_thematique_home">[\s\S]*?<h2><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h2>[\s\S]*?<\/div>/g;
+      while ((m = thematicRe.exec(html)) !== null) {
+        const day = m[1].split('/');
+        const title = decodeHtmlEntities(m[3]).replace(/\s+/g, ' ').trim();
+        if (!title || title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+        let cat = forcedCategory || 'general';
+        if (!forcedCategory) {
+          const preContext = html.substring(Math.max(0, m.index - 500), m.index);
+          const catMatch = preContext.match(/<h2><a[^>]*href="[^"]*thematique\/([^"]*)"[^>]*>([^<]+)<\/a><\/h2>/);
+          if (catMatch) cat = SNRT_CAT_MAP[catMatch[2].trim()] || 'general';
+        }
+        articles.push({ title, date: day[2] + '-' + day[1] + '-' + day[0] + ' ' + m[2], category: cat });
+      }
+
+      const mainRe = /<h1 class="news_title_une"><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h1>/;
+      const mainMatch = html.match(mainRe);
+      if (mainMatch) {
+        const title = decodeHtmlEntities(mainMatch[1]).replace(/\s+/g, ' ').trim();
+        if (title && title.length >= 10 && !seen.has(title)) {
+          seen.add(title);
+          let cat = forcedCategory || 'general';
+          if (!forcedCategory) {
+            const catMatch2 = html.match(/<div class="last_news_info">[\s\S]*?<div class="field-content[^"]*"><h2>([^<]+)<\/h2>/);
+            if (catMatch2) cat = SNRT_CAT_MAP[catMatch2[1].trim()] || 'general';
+          }
+          const dateMatch = html.match(/<div class="date_publication">(\d{2}\/\d{2}\/\d{4}) - (\d{2}:\d{2})<\/div>/);
+          const date = dateMatch ? dateMatch[1].split('/')[2] + '-' + dateMatch[1].split('/')[1] + '-' + dateMatch[1].split('/')[0] + ' ' + dateMatch[2] : '';
+          articles.unshift({ title, date, category: cat });
+        }
+      }
+
+      return articles;
+    }
+
+    // ==================== FETCH ====================
+    const PROXIES = [
+      (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+      (u) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+    ];
+
+    async function fetchWithFallback(url, timeoutMs = 15000) {
+      const errors = [];
+
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timer);
+        if (res.ok) {
+          const text = await res.text();
+          if (text.length > 500 && !text.includes('Just a moment')) return text;
+        }
+      } catch (e) { errors.push('direct: ' + e.message); }
+
+      for (const makeUrl of PROXIES) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), timeoutMs);
+          const res = await fetch(makeUrl(url), { signal: controller.signal });
+          clearTimeout(timer);
+          if (!res.ok) continue;
+          const text = await res.text();
+          if (text.length > 500 && !text.includes('Just a moment') && !text.includes('challenge-platform')) return text;
+        } catch (e) { errors.push('proxy: ' + e.message); }
+      }
+
+      try {
+        const wb = 'https://webcache.googleusercontent.com/search?q=cache:' + encodeURIComponent(url);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 20000);
+        const res = await fetch(wb, { signal: controller.signal });
+        clearTimeout(timer);
+        if (res.ok) {
+          const text = await res.text();
+          if (text.length > 1000) return text;
+        }
+      } catch (e) { errors.push('cache: ' + e.message); }
+
+      throw new Error('Toutes les méthodes ont échoué : ' + errors.join(' | '));
+    }
+
+    function switchSource() {
+      currentSource = document.getElementById('sourceSelect').value;
+      categoriesData = {};
+      selectedIds = {};
+      activeTab = null;
+      document.getElementById('emptyState').style.display = '';
+      document.getElementById('panels').innerHTML = '';
+      document.getElementById('tabs').innerHTML = '';
+      updateCounter();
+    }
+
+    async function fetchAllCategories() {
+      const btn = document.getElementById('btnFetchAll');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> جاري التحميل...';
+      showLoading();
+
+      categoriesData = {};
+      selectedIds = {};
+      categoryLabels = {};
+
+      try {
+        if (currentSource === 'snrt') {
+          for (const [k, c] of Object.entries(SNRT_CATEGORIES)) {
+            try {
+              const url = 'https://snrtnews.com' + c.url;
+              const html = await fetchWithFallback(url, 15000);
+              const parsed = parseSnrtHtml(html, k);
+              const arts = parsed.slice(0, 12).map((a, i) => ({
+                id: i + 1, title: a.title, date: a.date,
+                category: k, category_label: c.label, category_label_fr: c.label_fr,
+              }));
+              if (arts.length) {
+                categoriesData[k] = arts;
+                selectedIds[k] = new Set();
+                categoryLabels[k] = c.label_fr;
+              }
+              showToast('📡 ' + c.label_fr + ' : ' + arts.length + ' articles');
+              await sleep(1000);
+            } catch (e) { showToast('⚠️ ' + c.label_fr + ' : ' + e.message); }
+          }
+        } else {
+          for (const [k, c] of Object.entries(MAP_CATEGORIES)) {
+            try {
+              const url = 'https://mapnews.ma' + c.url;
+              const html = await fetchWithFallback(url, 15000);
+              const parsed = parseMapnewsHtml(html);
+              const arts = parsed.slice(0, 15).map((a, i) => ({
+                id: i + 1, title: a.title, date: a.date,
+                category: k, category_label: c.label, category_label_fr: c.label_fr,
+              }));
+              if (arts.length) {
+                categoriesData[k] = arts;
+                selectedIds[k] = new Set();
+                categoryLabels[k] = c.label_fr;
+              }
+              showToast('📰 ' + c.label_fr + ' : ' + arts.length + ' articles');
+              await sleep(800);
+            } catch (e) { showToast('⚠️ ' + c.label_fr + ' : ' + e.message); }
+          }
+        }
+
+        const total = Object.values(categoriesData).reduce((s, a) => s + a.length, 0);
+        activeTab = Object.keys(categoriesData).find(k => categoriesData[k]?.length) || Object.keys(categoriesData)[0] || null;
+        if (total === 0) {
+          document.getElementById('emptyState').style.display = '';
+          document.getElementById('emptyState').innerHTML = '<p>❌ Aucun article trouvé. Les sites ont peut-être changé de structure.</p><p style="font-size:0.85rem;">Essayez de relancer ou changez de source.</p>';
+        } else {
+          document.getElementById('emptyState').style.display = 'none';
+        }
+        buildTabs();
+        showToast('✅ ' + total + ' articles collectés');
+      } catch (err) {
+        showToast('❌ ' + err.message);
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = '📡 جلب كل الأخبار';
+      hideLoading();
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // ==================== SAVE & TRANSLATE ====================
+    async function saveSelection() {
+      const selected = [];
+      for (const catKey in selectedIds) {
+        const arts = categoriesData[catKey] || [];
+        for (const a of arts) {
+          if (selectedIds[catKey].has(a.id)) {
+            selected.push({ ...a, category_key: catKey });
+          }
+        }
+      }
+      if (!selected.length) return;
+      openTranslateModal(selected);
+    }
+
+    function openTranslateModal(selected) {
+      const modal = document.getElementById('translateModal');
+      const content = document.getElementById('translateContent');
+      const grouped = {};
+      selected.forEach(a => {
+        const cat = a.category_label_fr || 'Autre';
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(a);
+      });
+
+      let html = '';
+      let idx = 0;
+      for (const cat in grouped) {
+        html += '<div style="background:#1a5c2a;color:white;padding:8px 12px;font-weight:bold;border-radius:6px;margin:10px 0 6px;">' + cat + '</div>';
+        for (const a of grouped[cat]) {
+          html += '<div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">' +
+            '<div style="flex:1;"><textarea data-idx="' + idx + '" data-lang="ar" rows="2" style="width:100%;border:1px solid #ddd;border-radius:4px;padding:6px;font-size:0.85rem;direction:rtl;">' + (a.title || a.ar || '') + '</textarea></div>' +
+            '<div style="flex:1;"><textarea data-idx="' + idx + '" data-lang="fr" rows="2" style="width:100%;border:1px solid #ddd;border-radius:4px;padding:6px;font-size:0.85rem;" placeholder="FR..."></textarea></div>' +
+            '<div style="flex:1;"><textarea data-idx="' + idx + '" data-lang="en" rows="2" style="width:100%;border:1px solid #ddd;border-radius:4px;padding:6px;font-size:0.85rem;" placeholder="EN..."></textarea></div>' +
+          '</div>';
+          idx++;
+        }
+      }
+      content.innerHTML = html;
+      modal.classList.add('active');
+    }
+
+    function getTranslationsFromForm() {
+      const arts = [];
+      document.querySelectorAll('textarea[data-lang="ar"]').forEach(arEl => {
+        const idx = arEl.dataset.idx;
+        const frEl = document.querySelector('textarea[data-idx="' + idx + '"][data-lang="fr"]');
+        const enEl = document.querySelector('textarea[data-idx="' + idx + '"][data-lang="en"]');
+        arts.push({ ar: arEl.value.trim(), fr: frEl?.value.trim() || '', en: enEl?.value.trim() || '' });
+      });
+      return arts;
+    }
+
+    async function autoTranslate(targetLang) {
+      if (translating) return;
+      const key = localStorage.getItem('bn_nano_key');
+      if (!key) { showToast('Clé API requise (⚙️ Config)'); openConfigModal(); return; }
+
+      translating = true;
+      const langLabel = targetLang === 'fr' ? 'FR' : 'EN';
+      const btn = document.getElementById(targetLang === 'fr' ? 'btnTranslateFR' : 'btnTranslateEN');
+      const progress = document.getElementById('translateProgress');
+
+      const arTextareas = document.querySelectorAll('textarea[data-lang="ar"]');
+      const texts = [];
+      const indices = [];
+      arTextareas.forEach(el => {
+        const idx = el.dataset.idx;
+        const targetEl = document.querySelector('textarea[data-idx="' + idx + '"][data-lang="' + targetLang + '"]');
+        if (targetEl && el.value.trim() && !targetEl.value.trim()) {
+          texts.push(el.value.trim());
+          indices.push(idx);
+        }
+      });
+
+      if (!texts.length) { translating = false; showToast('Déjà traduit'); return; }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> جاري...';
+
+      const BATCH_SIZE = 10;
+      const totalBatches = Math.ceil(texts.length / BATCH_SIZE);
+
+      try {
+        for (let batch = 0; batch < totalBatches; batch++) {
+          const start = batch * BATCH_SIZE;
+          const end = Math.min(start + BATCH_SIZE, texts.length);
+          const batchTexts = texts.slice(start, end);
+          const batchIndices = indices.slice(start, end);
+
+          progress.textContent = langLabel + ': ' + end + '/' + texts.length;
+
+          const prompt = 'Translate each Arabic news headline to ' + (targetLang === 'fr' ? 'French' : 'English') + '. Keep numbering. Output ONLY translations, one per line, numbered.\n\n' + batchTexts.map((t, i) => (start + i + 1) + '. ' + t).join('\n');
+
+          const res = await fetch('https://nano-gpt.com/api/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+            body: JSON.stringify({ model: 'google/gemma-4-31b-it', messages: [{ role: 'user', content: prompt }], temperature: 0.1 }),
+          });
+          const data = await res.json();
+          const lines = (data.choices?.[0]?.message?.content || '').split('\n').map(l => l.replace(/^\d+[.\)-]\s*/, '').replace(/\.+$/, '').trim()).filter(l => l);
+
+          for (let i = 0; i < batchIndices.length; i++) {
+            const el = document.querySelector('textarea[data-idx="' + batchIndices[i] + '"][data-lang="' + targetLang + '"]');
+            if (el && lines[i]) {
+              el.value = lines[i];
+              el.style.background = '#f0faf3';
+            }
+          }
+        }
+        showToast('✅ ' + langLabel + ': ' + texts.length + ' traductions');
+      } catch (err) {
+        showToast('❌ ' + err.message);
+      }
+
+      progress.textContent = '';
+      btn.disabled = false;
+      btn.innerHTML = targetLang === 'fr' ? '🇫🇷 ترجمة فرنسي' : '🇬🇧 ترجمة إنجليزي';
+      translating = false;
+    }
+
+    function generateDocument() {
+      const arts = getTranslationsFromForm();
+      const sep = '§';
+      const ar = arts.map(a => a.ar).join('\n' + sep + '\n');
+      const fr = arts.map(a => a.fr || '').join('\n' + sep + '\n');
+      const en = arts.map(a => a.en || '').join('\n' + sep + '\n');
+      const txt = ar + '\n' + sep + '\n\n' + fr + '\n' + sep + '\n\n' + en + '\n' + sep + '\n';
+
+      closeModal('translateModal');
+      document.getElementById('outputText').value = txt;
+      document.getElementById('previewModal').classList.add('active');
+      showToast('✅ تم إنشاء الوثيقة');
+    }
+
+    function copyOutput() {
+      navigator.clipboard.writeText(document.getElementById('outputText').value).then(() => showToast('📋 تم النسخ!'));
+    }
+
+    function downloadTxt() {
+      const text = document.getElementById('outputText').value;
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      const d = new Date(), pad = n => String(n).padStart(2, '0');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'bande-news_' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '.txt';
+      a.click();
+    }
+
+    // ==================== CONFIG ====================
+    function openConfigModal() {
+      const saved = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
+      document.getElementById('nanoKey').value = saved.nanoKey || '';
+      document.getElementById('scraperKey').value = saved.scraperKey || '';
+      document.getElementById('configModal').classList.add('active');
+    }
+
+    function saveConfig() {
+      localStorage.setItem(CONFIG_KEY, JSON.stringify({
+        nanoKey: document.getElementById('nanoKey').value.trim(),
+        scraperKey: document.getElementById('scraperKey').value.trim(),
+      }));
+      closeModal('configModal');
+      showToast('✅ Configuration enregistrée');
+    }
+
+    // Service Worker pour PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
