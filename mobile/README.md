@@ -1,84 +1,97 @@
 # Bande News — Application iOS
 
-Ce dossier contient le projet **Capacitor** pour transformer Bande News en application iOS native.
+Application iOS native créée avec **Capacitor**. Le téléphone peut fonctionner de 3 manières :
+
+| Mode | Besoin serveur | Fonctionnalités |
+|------|---------------|-----------------|
+| **📡 Autonome** | ❌ Aucun | Scrape directement les sites, traduit via API, tout sur le téléphone |
+| **📴 Hors Ligne** | ❌ Aucun | Saisie manuelle, traduction API, stockage local |
+| **🌐 Avec serveur** | ✅ Backend requis | Collecte serveur + vidéo + collecte bookmarklet |
 
 ## Prérequis
 
-- **macOS** avec Xcode installé (nécessaire pour compiler iOS)
+- **macOS** avec Xcode installé
 - **Node.js** 18+
-- Un compte **Apple Developer** (pour déployer sur un vrai appareil ou l'App Store)
+- Compte **Apple Developer** (pour déployer sur appareil/App Store)
 
 ## Structure
 
 ```
 mobile/
-  capacitor.config.json    # Configuration Capacitor
-  build.js                 # Script qui copie et patch public/ → www/
-  www/                     # Assets web générés (copie de public/ + patches)
-  ios/                     # Projet Xcode natif
-  resources/               # Sources SVG pour icônes et splash screen
+  capacitor.config.json      # Configuration Capacitor
+  build.js                   # Script de build public/ → www/
+  standalone.html            # 📡 Mode autonome (scraping direct)
+  offline.html               # 📴 Mode hors ligne (saisie manuelle)
+  www/                       # Assets générés pour l'app
+  ios/                       # Projet Xcode natif
+  resources/                 # Icône & splash SVG
 ```
 
-## Installation
+## Installation & Build
 
 ```bash
 cd mobile
 npm install
+npm run build          # Génère www/ depuis public/ + standalone + offline
+npx cap sync           # Synchronise avec le projet iOS
+npx cap open ios       # Ouvre Xcode
 ```
 
-## Build
+Dans Xcode :
+1. Sélectionnez votre **Team** Apple
+2. Lancez sur simulateur ou appareil
 
-Le script `build.js` copie les fichiers de `../public/` vers `www/` et injecte automatiquement la couche Capacitor (détection mobile + redirection des appels API).
+## Les 3 modes
 
-```bash
-npm run build
-```
+### 📡 Mode Autonome (recommandé)
 
-## Synchronisation iOS
+**Aucun serveur requis.** Le téléphone fait directement :
+- Les requêtes à `mapnews.ma` et `SNRTnews` (via proxies CORS)
+- Les appels à l'API NanoGPT pour la traduction
+- Le stockage dans `localStorage`
+- L'export JSON/TXT
 
-```bash
-npx cap sync
-```
+Depuis le menu principal → **Mode Autonome**
 
-## Ouvrir dans Xcode
+**Configuration nécessaire :**
+- Clé API NanoGPT (dans l'onglet Config)
 
-```bash
-npx cap open ios
-```
+### 📴 Mode Hors Ligne
 
-Depuis Xcode :
-1. Sélectionnez votre **Team** (compte Apple) dans les signing settings
-2. Choisissez un **simulateur iPhone** ou branchez un vrai appareil
-3. Cliquez sur **▶ Run**
+**Sans aucune connexion internet** (sauf pour la traduction).
 
-## Configuration de l'API
+- Saisie manuelle des titres arabes
+- Traduction FR/EN via API
+- Import/export JSON
 
-Par défaut, l'app se connecte à `http://192.168.1.32:3002` (serveur local).
+Depuis le menu principal → **Mode Hors Ligne**
 
-**Pour changer l'URL du serveur :**
-- Ouvrez `menu.html` dans l'app
-- Renseignez l'URL de votre serveur
-- Ou modifiez `API_BASE_URL` dans `www/capacitor-config.js`
+### 🌐 Mode Serveur
+
+Se connecte à un backend Node.js (local ou cloud).
+
+Depuis le menu principal → renseignez l'URL du serveur.
+
+**Déploiement cloud :**
+- Le projet inclut un `Dockerfile` et `render.yaml`
+- Déployez sur [Render.com](https://render.com) gratuitement
+- Copiez l'URL dans l'app
 
 ## Publication App Store
 
-1. Dans Xcode, sélectionnez **Any iOS Device** comme cible
-2. Faites **Product → Archive**
-3. Utilisez **Organizer** pour uploader vers App Store Connect
+1. Xcode → **Any iOS Device**
+2. **Product → Archive**
+3. **Organizer → Distribute App**
 4. Suivez les étapes sur [App Store Connect](https://appstoreconnect.apple.com)
+
+## Notes techniques
+
+- `NSAllowsArbitraryLoads` est activé dans `Info.plist` pour le développement
+- Le plugin `@capacitor-community/http` est inclus pour les requêtes natives (contourne CORS sur iOS)
+- Les proxys CORS publics (`allorigins.win`, `codetabs.com`) sont utilisés comme fallback
 
 ## Personnalisation des assets
 
-Remplacez les fichiers dans `resources/` puis convertissez-les en PNG :
-
-- **Icône** : `resources/icon.svg` → `ios/App/App/Assets.xcassets/AppIcon.appiconset/`
-- **Splash** : `resources/splash.svg` → `ios/App/App/Assets.xcassets/Splash.imageset/`
-
-Tailles requises pour iOS :
-- Icône : 1024×1024 px
-- Splash : 2732×2732 px
-
-## Notes
-
-- Le `Info.plist` autorise les connexions HTTP non sécurisées (`NSAllowsArbitraryLoads`) pour le développement local. Avant la publication App Store, configurez un serveur HTTPS ou définissez des exceptions ATS plus restrictives.
-- Le status bar est configuré avec le style sombre et la couleur verte `#1a5c2a`.
+Convertissez les SVG en PNG aux tailles iOS requises :
+- **Icône** : 1024×1024 px → `ios/App/App/Assets.xcassets/AppIcon.appiconset/`
+- **Splash** : 2732×2732 px → `ios/App/App/Assets.xcassets/Splash.imageset/`

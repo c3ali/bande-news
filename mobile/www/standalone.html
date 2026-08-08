@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Bande News — Mode Autonome</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #1a5c2a; --primary-light: #2a8a42; --primary-dark: #0f3d1a;
+      --accent: #c1272d; --bg: #f5f5f0; --card: #ffffff;
+      --text: #1a1a1a; --text-secondary: #555; --border: #ddd;
+      --radius: 10px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; padding: 16px;
+      padding-top: max(16px, env(safe-area-inset-top));
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+    header {
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      color: white; padding: 16px; border-radius: var(--radius);
+      margin-bottom: 14px; text-align: center;
+    }
+    header h1 { font-size: 1.15rem; }
+    header p { font-size: 0.75rem; opacity: 0.85; margin-top: 4px; }
+    .tabs {
+      display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto;
+    }
+    .tab {
+      flex: 1; min-width: 80px; padding: 10px 8px;
+      background: #e8e8e3; border: none; border-radius: var(--radius);
+      font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .tab.active { background: var(--primary); color: white; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 12px 16px; border: none; border-radius: var(--radius);
+      font-size: 0.9rem; font-weight: 600; cursor: pointer; color: white;
+      width: 100%; margin-bottom: 8px;
+    }
+    .btn-primary { background: var(--primary); }
+    .btn-accent { background: var(--accent); }
+    .btn-dark { background: #333; }
+    .btn-blue { background: #2563eb; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      padding: 14px; margin-bottom: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border: 2px solid transparent;
+    }
+    .card.selected { border-color: var(--primary); background: #f0faf3; }
+    .card-title { font-weight: 700; margin-bottom: 6px; line-height: 1.5; }
+    .card-meta { font-size: 0.78rem; color: #888; margin-bottom: 6px; }
+    .card-trans { font-size: 0.85rem; color: var(--text-secondary); margin-top: 6px; padding-top: 6px; border-top: 1px dashed #eee; }
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2.5px solid rgba(255,255,255,0.3); border-top-color: white;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .progress { background: #e0e0e0; border-radius: 10px; height: 8px; margin: 10px 0; overflow: hidden; }
+    .progress-bar { background: var(--primary); height: 100%; width: 0%; transition: width 0.3s; }
+    .log {
+      background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: var(--radius);
+      font-family: 'SF Mono', monospace; font-size: 0.78rem; max-height: 200px; overflow-y: auto;
+      margin-top: 10px;
+    }
+    .log-line { margin-bottom: 4px; }
+    .setting-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 0; border-bottom: 1px solid #eee;
+    }
+    .setting-row label { font-weight: 600; font-size: 0.9rem; }
+    input[type="text"], input[type="password"] {
+      width: 100%; padding: 12px; border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: 0.9rem; margin-top: 6px;
+    }
+    .toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #333; color: white; padding: 12px 24px;
+      border-radius: var(--radius); font-weight: 600;
+      transition: transform 0.3s; z-index: 200;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .source-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .source-btn {
+      padding: 14px; background: white; border: 2px solid #e0e0e0;
+      border-radius: var(--radius); text-align: center; cursor: pointer;
+      font-weight: 600; font-size: 0.85rem;
+    }
+    .source-btn.active { border-color: var(--primary); background: #f0faf3; }
+    .counter { background: var(--primary); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; display: inline-block; margin-bottom: 10px; }
+    .actions-bottom {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: white; padding: 12px 16px;
+      display: flex; gap: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+    .actions-bottom .btn { margin: 0; padding: 14px; font-size: 0.85rem; }
+    .spacer { height: 80px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📰 باند نيوز — Mode Autonome</h1>
+    <p>Le téléphone fait tout : scraping, traduction, export</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('scrap')">📡 Collecter</button>
+    <button class="tab" onclick="switchTab('articles')">📑 Articles</button>
+    <button class="tab" onclick="switchTab('config')">⚙️ Config</button>
+  </div>
+
+  <!-- Panel Collecte -->
+  <div class="panel active" id="panel-scrap">
+    <div class="source-grid">
+      <div class="source-btn active" id="src-mapnews" onclick="setSource('mapnews')">mapnews.ma</div>
+      <div class="source-btn" id="src-snrt" onclick="setSource('snrt')">SNRTnews</div>
+    </div>
+
+    <div id="mapnews-cats" style="margin-bottom:10px;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchCategory('politique')">Politique</button>
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchCategory('sport')">Sport</button>
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchCategory('economie')">Économie</button>
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchCategory('social')">Société</button>
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchCategory('culture')">Culture</button>
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchCategory('monde')">Monde</button>
+      </div>
+    </div>
+
+    <div id="snrt-cats" style="display:none;margin-bottom:10px;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchSnrt('all')">Tout</button>
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchSnrt('politique')">Politique</button>
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchSnrt('sport')">Sport</button>
+        <button class="btn btn-dark" style="flex:1;padding:10px;font-size:0.8rem;" onclick="fetchSnrt('economie')">Économie</button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btnFetch" onclick="fetchAllCategories()">🚀 Collecter TOUTES les catégories</button>
+    <div class="progress" id="progressContainer" style="display:none;"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="log" id="logBox" style="display:none;"></div>
+  </div>
+
+  <!-- Panel Articles -->
+  <div class="panel" id="panel-articles">
+    <span class="counter" id="articleCounter">0 article</span>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+      <button class="btn btn-primary" style="flex:1;" onclick="translateAll('fr')">🇫🇷 Traduire FR</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="translateAll('en')">🇬🇧 Traduire EN</button>
+      <button class="btn btn-accent" style="flex:1;" onclick="clearAll()">🗑️ Tout effacer</button>
+    </div>
+    <div id="articlesList"></div>
+    <div class="spacer"></div>
+  </div>
+
+  <!-- Panel Config -->
+  <div class="panel" id="panel-config">
+    <div class="card">
+      <label style="font-weight:700;display:block;margin-bottom:6px;">Clé API NanoGPT</label>
+      <input type="password" id="nanoKey" placeholder="sk-nano-...">
+      <label style="font-weight:700;display:block;margin:12px 0 6px;">Clé ScraperAPI (optionnel)</label>
+      <input type="password" id="scraperKey" placeholder="">
+      <button class="btn btn-primary" style="margin-top:10px;" onclick="saveConfig()">💾 Enregistrer</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:12px;">Exporter / Importer</h3>
+      <button class="btn btn-blue" onclick="exportJson()">📤 Exporter JSON</button>
+      <button class="btn btn-blue" onclick="exportTxt()">📤 Exporter TXT</button>
+      <button class="btn btn-dark" onclick="importJson()">📥 Importer JSON</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:12px;">À propos</h3>
+      <p style="font-size:0.85rem;color:#666;line-height:1.6;">
+        Cette application fonctionne <strong>sans serveur</strong>.<br><br>
+        Le téléphone fait directement les requêtes aux sites d'actualités et à l'API de traduction.<br><br>
+        Les données sont stockées uniquement sur cet appareil.
+      </p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ========================= CONFIG & STATE =========================
+    const STORAGE_KEY = 'bn_standalone_articles';
+    let articles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let currentSource = 'mapnews';
+    let selected = new Set();
+    let isCapacitor = false;
+
+    // Détecter Capacitor
+    try {
+      if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+        isCapacitor = true;
+      }
+    } catch(e) {}
+
+    // ========================= CATEGORIES =========================
+    const CATEGORIES = {
+      mapnews: {
+        politique:   { url: '/ar/actualites/politique',   label: 'سياسة', label_fr: 'Politique' },
+        sport:       { url: '/ar/actualites/sport',       label: 'رياضة', label_fr: 'Sport' },
+        economie:    { url: '/ar/actualites/economie',    label: 'اقتصاد', label_fr: 'Économie' },
+        social:      { url: '/ar/actualites/societe',     label: 'مجتمع', label_fr: 'Société' },
+        culture:     { url: '/ar/actualites/culture',     label: 'فن و ثقافة', label_fr: 'Culture' },
+        monde:       { url: '/ar/actualites/monde',       label: 'عالم', label_fr: 'Monde' },
+        technologie: { url: '/ar/actualites/technologie', label: 'تكنولوجيا', label_fr: 'Technologie' },
+        afrique:     { url: '/ar/actualites/afrique',     label: 'إفريقيا', label_fr: 'Afrique' },
+      },
+      snrt: {
+        all: { url: '', label: 'الكل', label_fr: 'Tout' },
+        activites_royales: { url: '/thematique/activites-royales', label: 'الأنشطة الملكية', label_fr: 'Activités royales' },
+        politique: { url: '/thematique/politique', label: 'سياسة', label_fr: 'Politique' },
+        sport: { url: '/thematique/sport', label: 'رياضة', label_fr: 'Sport' },
+        social: { url: '/thematique/societe', label: 'مجتمع', label_fr: 'Société' },
+        economie: { url: '/thematique/economie', label: 'اقتصاد', label_fr: 'Économie' },
+        culture: { url: '/thematique/culture', label: 'فن و ثقافة', label_fr: 'Culture' },
+        monde: { url: '/thematique/monde', label: 'عالم', label_fr: 'Monde' },
+        technologie: { url: '/thematique/technologie', label: 'تكنولوجيا', label_fr: 'Technologie' },
+        afrique: { url: '/thematique/afrique', label: 'إفريقيا', label_fr: 'Afrique' },
+      }
+    };
+
+    // ========================= PROXIES CORS =========================
+    const PROXIES = [
+      (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+      (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    ];
+
+    // ========================= FETCH AVEC FALLBACK =========================
+    async function fetchWithFallback(url, options = {}, timeoutMs = 15000) {
+      const errors = [];
+
+      // Essai direct (peut marcher si CORS permissif ou sur Capacitor)
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timer);
+        if (res.ok) {
+          const text = await res.text();
+          if (text.length > 500 && !text.includes('Just a moment')) return text;
+        }
+      } catch (e) { errors.push('direct: ' + e.message); }
+
+      // Proxies
+      for (const makeUrl of PROXIES) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), timeoutMs);
+          const res = await fetch(makeUrl(url), { signal: controller.signal });
+          clearTimeout(timer);
+          if (!res.ok) continue;
+          const text = await res.text();
+          if (text.length > 500 && !text.includes('Just a moment') && !text.includes('challenge-platform')) return text;
+        } catch (e) { errors.push('proxy: ' + e.message); }
+      }
+
+      // Wayback
+      try {
+        const wb = `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}`;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 20000);
+        const res = await fetch(wb, { signal: controller.signal });
+        clearTimeout(timer);
+        if (res.ok) {
+          const text = await res.text();
+          if (text.length > 1000) return text;
+        }
+      } catch (e) { errors.push('cache: ' + e.message); }
+
+      throw new Error('Toutes les méthodes ont échoué : ' + errors.join(' | '));
+    }
+
+    // ========================= PARSERS =========================
+    function decodeHtml(str) {
+      return str
+        .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"').replace(/&amp;/gi, '&')
+        .replace(/&#0?39;/gi, "'").replace(/&apos;/gi, "'")
+        .replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    }
+
+    function parseMapnewsHtml(html, catKey) {
+      const articles = [];
+      const seen = new Set();
+      const re = /<article[^>]*>([\s\S]*?)<\/article>/gi;
+      let m;
+      while ((m = re.exec(html)) !== null) {
+        const art = m[1];
+        const titleMatch = art.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i) || art.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
+        if (!titleMatch) continue;
+        const title = decodeHtml(titleMatch[1]);
+        if (title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+        const dateMatch = art.match(/<time[^>]*>([\s\S]*?)<\/time>/i);
+        const date = dateMatch ? decodeHtml(dateMatch[1]) : '';
+        articles.push({ title, date });
+      }
+      return articles;
+    }
+
+    function parseSnrtHtml(html, catKey) {
+      const articles = [];
+      const seen = new Set();
+      const re = /<div[^>]*class="[^"]*block-1[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
+      let m;
+      while ((m = re.exec(html)) !== null) {
+        const block = m[1];
+        const titleMatch = block.match(/<a[^>]*href="[^"]*\/ar\/[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+        if (!titleMatch) continue;
+        const title = decodeHtml(titleMatch[1]);
+        if (title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+        const dateMatch = block.match(/<div[^>]*class="[^"]*date[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+        const date = dateMatch ? decodeHtml(dateMatch[1]) : '';
+        articles.push({ title, date });
+      }
+      // Fallback sur les <article> aussi
+      const re2 = /<article[^>]*>([\s\S]*?)<\/article>/gi;
+      while ((m = re2.exec(html)) !== null) {
+        const art = m[1];
+        const titleMatch = art.match(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/i);
+        if (!titleMatch) continue;
+        const title = decodeHtml(titleMatch[1]);
+        if (title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+        const dateMatch = art.match(/<time[^>]*>([\s\S]*?)<\/time>/i);
+        const date = dateMatch ? decodeHtml(dateMatch[1]) : '';
+        articles.push({ title, date });
+      }
+      return articles;
+    }
+
+    // ========================= COLLECTE =========================
+    async function fetchCategory(catKey) {
+      const btn = document.getElementById('btnFetch');
+      btn.disabled = true;
+      log(`Collecte ${catKey}...`);
+
+      try {
+        const cat = CATEGORIES.mapnews[catKey];
+        const url = `https://mapnews.ma${cat.url}`;
+        const html = await fetchWithFallback(url, {}, 15000);
+        const parsed = parseMapnewsHtml(html, catKey);
+        log(`${parsed.length} articles trouvés`);
+
+        const newArticles = parsed.map((a, i) => ({
+          id: Date.now() + i,
+          ar: a.title,
+          fr: '',
+          en: '',
+          date: a.date,
+          category: catKey,
+          category_label: cat.label,
+          category_label_fr: cat.label_fr,
+          source: 'mapnews.ma',
+          collectedAt: new Date().toISOString(),
+        }));
+
+        articles = [...newArticles, ...articles];
+        save();
+        renderArticles();
+        toast(`${parsed.length} articles de ${cat.label_fr} collectés`);
+      } catch (e) {
+        log('ERREUR: ' + e.message);
+        toast('Erreur: ' + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function fetchSnrt(catKey) {
+      const btn = document.getElementById('btnFetch');
+      btn.disabled = true;
+      log(`Collecte SNRT ${catKey}...`);
+
+      try {
+        const cat = CATEGORIES.snrt[catKey];
+        const base = 'https://snrtnews.com';
+        const allArticles = [];
+
+        if (catKey === 'all') {
+          for (const [k, c] of Object.entries(CATEGORIES.snrt)) {
+            if (k === 'all') continue;
+            try {
+              const url = `${base}${c.url}`;
+              const html = await fetchWithFallback(url, {}, 15000);
+              const parsed = parseSnrtHtml(html, k);
+              parsed.slice(0, 8).forEach(a => {
+                allArticles.push({
+                  id: Date.now() + Math.random(),
+                  ar: a.title,
+                  fr: '',
+                  en: '',
+                  date: a.date,
+                  category: k,
+                  category_label: c.label,
+                  category_label_fr: c.label_fr,
+                  source: 'SNRTnews',
+                  collectedAt: new Date().toISOString(),
+                });
+              });
+              log(`${k}: ${parsed.length} articles`);
+              await sleep(800);
+            } catch (e) { log(`SKIP ${k}: ${e.message}`); }
+          }
+        } else {
+          const url = `${base}${cat.url}`;
+          const html = await fetchWithFallback(url, {}, 15000);
+          const parsed = parseSnrtHtml(html, catKey);
+          parsed.forEach(a => {
+            allArticles.push({
+              id: Date.now() + Math.random(),
+              ar: a.title,
+              fr: '',
+              en: '',
+              date: a.date,
+              category: catKey,
+              category_label: cat.label,
+              category_label_fr: cat.label_fr,
+              source: 'SNRTnews',
+              collectedAt: new Date().toISOString(),
+            });
+          });
+          log(`${parsed.length} articles`);
+        }
+
+        articles = [...allArticles, ...articles];
+        save();
+        renderArticles();
+        toast(`${allArticles.length} articles SNRT collectés`);
+      } catch (e) {
+        log('ERREUR: ' + e.message);
+        toast('Erreur: ' + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function fetchAllCategories() {
+      const cats = currentSource === 'mapnews'
+        ? Object.keys(CATEGORIES.mapnews)
+        : Object.keys(CATEGORIES.snrt).filter(k => k !== 'all');
+
+      const progress = document.getElementById('progressBar');
+      const progressContainer = document.getElementById('progressContainer');
+      const btn = document.getElementById('btnFetch');
+      progressContainer.style.display = 'block';
+      btn.disabled = true;
+      document.getElementById('logBox').style.display = 'block';
+
+      for (let i = 0; i < cats.length; i++) {
+        const cat = cats[i];
+        progress.style.width = `${((i + 1) / cats.length) * 100}%`;
+        if (currentSource === 'mapnews') await fetchCategory(cat);
+        else await fetchSnrt(cat);
+        if (i < cats.length - 1) await sleep(1000);
+      }
+
+      progress.style.width = '100%';
+      btn.disabled = false;
+      toast('Collecte terminée !');
+    }
+
+    // ========================= TRADUCTION =========================
+    async function translateAll(target) {
+      const key = localStorage.getItem('bn_nano_key');
+      if (!key) { toast('Clé API requise (onglet Config)'); switchTab('config'); return; }
+
+      const untranslated = articles.filter(a => !a[target]);
+      if (!untranslated.length) { toast('Tout est déjà traduit'); return; }
+
+      toast(`Traduction ${target.toUpperCase()} en cours...`);
+      const chunks = chunk(untranslated, 10);
+
+      for (const chunkArticles of chunks) {
+        const texts = chunkArticles.map(a => a.ar);
+        const prompt = `Translate each Arabic news headline to ${target === 'fr' ? 'French' : 'English'}. Keep numbering. Output ONLY translations, one per line, numbered.\n\n${texts.map((t, i) => `${i + 1}. ${t}`).join('\n')}`;
+
+        try {
+          const res = await fetch('https://nano-gpt.com/api/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+            body: JSON.stringify({ model: 'google/gemma-4-31b-it', messages: [{ role: 'user', content: prompt }], temperature: 0.1 }),
+          });
+          if (!res.ok) throw new Error('API ' + res.status);
+          const data = await res.json();
+          const lines = (data.choices?.[0]?.message?.content || '').split('\n').map(l => l.replace(/^\d+[.\)-]\s*/, '').replace(/\.+$/, '').trim()).filter(l => l);
+
+          chunkArticles.forEach((a, i) => {
+            const idx = articles.findIndex(x => x.id === a.id);
+            if (idx !== -1) articles[idx][target] = lines[i] || '';
+          });
+          save(); renderArticles();
+        } catch (e) {
+          toast('Erreur traduction: ' + e.message);
+          break;
+        }
+        await sleep(500);
+      }
+      toast('Traduction terminée');
+    }
+
+    // ========================= UI =========================
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('panel-' + name).classList.add('active');
+      if (name === 'articles') renderArticles();
+    }
+
+    function setSource(src) {
+      currentSource = src;
+      document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('src-' + src).classList.add('active');
+      document.getElementById('mapnews-cats').style.display = src === 'mapnews' ? 'block' : 'none';
+      document.getElementById('snrt-cats').style.display = src === 'snrt' ? 'block' : 'none';
+    }
+
+    function renderArticles() {
+      const container = document.getElementById('articlesList');
+      document.getElementById('articleCounter').textContent = articles.length + ' article' + (articles.length > 1 ? 's' : '');
+      if (!articles.length) {
+        container.innerHTML = '<div style="text-align:center;padding:40px;color:#888;">Aucun article.<br>Allez dans 📡 Collecter</div>';
+        return;
+      }
+      container.innerHTML = articles.map((a, i) => `
+        <div class="card ${selected.has(a.id) ? 'selected' : ''}" onclick="toggleSelect(${a.id})">
+          <div class="card-meta">${a.source} · ${a.category_label_fr} · ${a.date || ''}</div>
+          <div class="card-title">${a.ar}</div>
+          ${a.fr ? `<div class="card-trans">🇫🇷 ${a.fr}</div>` : ''}
+          ${a.en ? `<div class="card-trans">🇬🇧 ${a.en}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function toggleSelect(id) {
+      if (selected.has(id)) selected.delete(id); else selected.add(id);
+      renderArticles();
+    }
+
+    function clearAll() {
+      if (!articles.length) return;
+      if (!confirm('Effacer tous les articles ?')) return;
+      articles = []; selected.clear(); save(); renderArticles();
+      toast('Tous les articles ont été effacés');
+    }
+
+    // ========================= EXPORT / IMPORT =========================
+    function exportJson() {
+      const blob = new Blob([JSON.stringify({ articles, exported: new Date().toISOString() }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `bande-news-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      toast('Export JSON terminé');
+    }
+
+    function exportTxt() {
+      const sep = '§';
+      const ar = articles.map(a => a.ar).join(`\n${sep}\n`);
+      const fr = articles.map(a => a.fr || '').join(`\n${sep}\n`);
+      const en = articles.map(a => a.en || '').join(`\n${sep}\n`);
+      const txt = `${ar}\n${sep}\n\n${fr}\n${sep}\n\n${en}\n${sep}\n`;
+      const blob = new Blob([txt], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `bande-news-${new Date().toISOString().slice(0, 10)}.txt`;
+      a.click();
+      toast('Export TXT terminé');
+    }
+
+    function importJson() {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = '.json';
+      input.onchange = async () => {
+        const file = input.files[0]; if (!file) return;
+        try {
+          const data = JSON.parse(await file.text());
+          if (data.articles) {
+            articles = [...data.articles, ...articles];
+            save(); renderArticles();
+            toast(`${data.articles.length} articles importés`);
+          }
+        } catch { toast('Fichier invalide'); }
+      };
+      input.click();
+    }
+
+    function saveConfig() {
+      localStorage.setItem('bn_nano_key', document.getElementById('nanoKey').value.trim());
+      localStorage.setItem('bn_scraper_key', document.getElementById('scraperKey').value.trim());
+      toast('Configuration enregistrée');
+    }
+
+    function loadConfig() {
+      document.getElementById('nanoKey').value = localStorage.getItem('bn_nano_key') || '';
+      document.getElementById('scraperKey').value = localStorage.getItem('bn_scraper_key') || '';
+    }
+
+    // ========================= UTILS =========================
+    function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(articles)); }
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    function chunk(arr, n) { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; }
+    function log(msg) {
+      const box = document.getElementById('logBox');
+      box.style.display = 'block';
+      box.innerHTML += `<div class="log-line">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+      box.scrollTop = box.scrollHeight;
+    }
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // Init
+    loadConfig();
+    renderArticles();
+  </script>
+</body>
+</html>
