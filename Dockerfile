@@ -1,8 +1,22 @@
-FROM node:24-alpine
+# Bande News — Dockerfile
+FROM node:20-alpine
 
 WORKDIR /app
-COPY package.json .
+
+# Copier les fichiers de dépendances
+COPY package.json ./
 RUN npm install --production
-COPY . .
-EXPOSE 3000
+
+# Copier le code source
+COPY src/ ./src/
+COPY public/ ./public/
+COPY config.json ./
+
+# Créer le dossier output
+RUN mkdir -p output
+
+# Port exposé
+EXPOSE 3002
+
+# Démarrer le serveur
 CMD ["node", "src/server.js"]

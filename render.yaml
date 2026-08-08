@@ -1,0 +1,19 @@
+# Render.com — Configuration de déploiement
+services:
+  - type: web
+    name: bande-news-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 3002
+      - key: NODE_ENV
+        value: production
+      # Optionnel : clé API pour le scraping
+      - key: SCRAPER_API_KEY
+        sync: false
+      # Optionnel : clé NanoGPT
+      - key: NANO_GPT_KEY
+        sync: false
+    healthCheckPath: /api/categories

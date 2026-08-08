@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bande News — Générateur vidéo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    .container { width: 100%; max-width: 720px; }
+    h1 { font-size: 1.8rem; font-weight: 600; margin-bottom: 8px; color: #fff; }
+    .subtitle { color: #888; font-size: 0.95rem; margin-bottom: 32px; }
+
+    .card {
+      background: #16213e;
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      border: 1px solid #0f3460;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #e94560;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 28px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s, background 0.2s;
+      width: 100%;
+      justify-content: center;
+    }
+    .btn:hover:not(:disabled) { background: #d6344f; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+    .btn.running .spinner { display: block; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .progress-area { margin-top: 24px; display: none; }
+    .progress-area.active { display: block; }
+
+    .progress-bar-bg {
+      height: 10px;
+      background: #0f3460;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #e94560, #ff6b6b);
+      border-radius: 5px;
+      transition: width 0.4s ease;
+    }
+
+    .progress-text {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+      color: #ccc;
+    }
+    .progress-percent { font-weight: 700; color: #fff; font-size: 1.1rem; }
+
+    .steps {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 24px;
+      position: relative;
+    }
+    .steps::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 10%;
+      right: 10%;
+      height: 2px;
+      background: #0f3460;
+      z-index: 0;
+    }
+    .step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 1;
+      flex: 1;
+    }
+    .step-circle {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: #0f3460;
+      color: #888;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      transition: all 0.3s;
+      border: 2px solid #0f3460;
+    }
+    .step.done .step-circle { background: #00d9ff; color: #1a1a2e; border-color: #00d9ff; }
+    .step.active .step-circle { background: #e94560; color: #fff; border-color: #e94560; box-shadow: 0 0 12px rgba(233,69,96,0.4); }
+    .step-label { font-size: 0.7rem; color: #888; text-align: center; max-width: 80px; }
+    .step.done .step-label, .step.active .step-label { color: #fff; }
+
+    .result { margin-top: 20px; padding: 16px; background: #0f3460; border-radius: 10px; display: none; }
+    .result.active { display: block; }
+    .result h3 { font-size: 1rem; margin-bottom: 10px; color: #00d9ff; }
+    .result video { width: 100%; border-radius: 8px; margin-bottom: 10px; }
+    .result a { color: #e94560; text-decoration: none; font-weight: 600; }
+    .result a:hover { text-decoration: underline; }
+
+    .video-list { margin-top: 16px; }
+    .video-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #0f3460;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+    }
+    .video-item a { color: #00d9ff; text-decoration: none; }
+    .video-item a:hover { text-decoration: underline; }
+    .badge {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #e94560;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .error-box {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: rgba(233,69,96,0.15);
+      border: 1px solid #e94560;
+      border-radius: 8px;
+      color: #ff8a9b;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .error-box.active { display: block; }
+  </style>
+<script src="capacitor-config.js"></script><script>if(window.IS_CAPACITOR){const _fetch=window.fetch;window.fetch=function(url,opts){if(typeof url==='string'&&url.startsWith('/api/')){url=window.API_BASE_URL+url}return _fetch(url,opts)};}</script></head>
+<body>
+  <div class="container">
+    <h1>🎬 Générateur Bande News</h1>
+    <p class="subtitle">Générez la bande défilante 3 langues (AR / FR / EN) pour OBS</p>
+
+    <div class="card">
+      <button id="btnGen" class="btn" onclick="startGeneration()">
+        <span class="spinner"></span>
+        <span id="btnText">Générer la bande news</span>
+      </button>
+
+      <div id="progressArea" class="progress-area">
+        <div class="progress-bar-bg"><div id="progressFill" class="progress-bar-fill"></div></div>
+        <div class="progress-text">
+          <span id="progressMsg">Préparation...</span>
+          <span id="progressPercent" class="progress-percent">0%</span>
+        </div>
+
+        <div class="steps">
+          <div class="step" id="step1"><div class="step-circle">1</div><div class="step-label">Serveur</div></div>
+          <div class="step" id="step2"><div class="step-circle">2</div><div class="step-label">Articles</div></div>
+          <div class="step" id="step3"><div class="step-circle">3</div><div class="step-label">Traduction</div></div>
+          <div class="step" id="step4"><div class="step-circle">4</div><div class="step-label">HTML</div></div>
+          <div class="step" id="step5"><div class="step-circle">5</div><div class="step-label">Rendu</div></div>
+        </div>
+      </div>
+
+      <div id="errorBox" class="error-box"></div>
+
+      <div id="resultArea" class="result">
+        <h3>✅ Vidéo générée</h3>
+        <video id="resultVideo" controls muted loop></video>
+        <div><a id="resultLink" href="#" target="_blank">📥 Télécharger la vidéo</a></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:1rem;margin-bottom:12px;color:#fff;">📁 Vidéos récentes</h3>
+      <div id="videoList" class="video-list"><p style="color:#888;font-size:0.85rem;">Chargement...</p></div>
+    </div>
+  </div>
+
+  <script>
+    let pollTimer = null;
+
+    function setBtn(running) {
+      const btn = document.getElementById('btnGen');
+      const txt = document.getElementById('btnText');
+      btn.disabled = running;
+      btn.classList.toggle('running', running);
+      txt.textContent = running ? 'Génération en cours...' : 'Générer la bande news';
+    }
+
+    function setProgress(percent, msg) {
+      document.getElementById('progressFill').style.width = percent + '%';
+      document.getElementById('progressPercent').textContent = percent + '%';
+      document.getElementById('progressMsg').textContent = msg || '';
+    }
+
+    function setSteps(phase) {
+      const phases = ['waiting-server','loading-articles','translating','generating-html','rendering','completed'];
+      const idx = phases.indexOf(phase);
+      for (let i = 1; i <= 5; i++) {
+        const el = document.getElementById('step' + i);
+        el.classList.remove('done','active');
+        if (idx > i) el.classList.add('done');
+        else if (idx === i) el.classList.add('active');
+      }
+    }
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.classList.add('active');
+    }
+    function hideError() { document.getElementById('errorBox').classList.remove('active'); }
+
+    async function startGeneration() {
+      hideError();
+      document.getElementById('resultArea').classList.remove('active');
+      setBtn(true);
+      document.getElementById('progressArea').classList.add('active');
+      setProgress(0, 'Lancement...');
+      setSteps('waiting-server');
+
+      try {
+        const res = await fetch('/api/generate-video', { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Échec du lancement');
+        pollStatus();
+      } catch (e) {
+        setBtn(false);
+        showError(e.message);
+      }
+    }
+
+    async function pollStatus() {
+      if (pollTimer) clearTimeout(pollTimer);
+      try {
+        const res = await fetch('/api/video-status?t=' + Date.now());
+        const s = await res.json();
+
+        setProgress(s.percent || 0, s.message || '...');
+        setSteps(s.phase || 'idle');
+
+        if (s.phase === 'completed') {
+          setBtn(false);
+          document.getElementById('resultArea').classList.add('active');
+          const vid = document.getElementById('resultVideo');
+          const link = document.getElementById('resultLink');
+          if (s.videoPath) {
+            const url = '/videos/' + s.videoPath;
+            vid.src = url;
+            link.href = url;
+          }
+          loadVideoList();
+          return;
+        }
+        if (s.phase === 'error') {
+          setBtn(false);
+          showError(s.message || 'Erreur inconnue');
+          return;
+        }
+        pollTimer = setTimeout(pollStatus, 2000);
+      } catch (e) {
+        pollTimer = setTimeout(pollStatus, 3000);
+      }
+    }
+
+    async function loadVideoList() {
+      try {
+        const res = await fetch('/api/videos');
+        const data = await res.json();
+        const container = document.getElementById('videoList');
+        if (!data.videos || data.videos.length === 0) {
+          container.innerHTML = '<p style="color:#888;font-size:0.85rem;">Aucune vidéo disponible.</p>';
+          return;
+        }
+        container.innerHTML = data.videos.slice(0, 10).map(v => {
+          const mb = (v.size / 1024 / 1024).toFixed(1);
+          return `<div class="video-item">
+            <div><a href="${v.path}" target="_blank">${v.name}</a></div>
+            <div><span class="badge">${mb} MB</span></div>
+          </div>`;
+        }).join('');
+      } catch {
+        document.getElementById('videoList').innerHTML = '<p style="color:#888;font-size:0.85rem;">Impossible de charger la liste.</p>';
+      }
+    }
+
+    loadVideoList();
+  </script>
+</body>
+</html>

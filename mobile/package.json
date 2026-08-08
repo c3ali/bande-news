@@ -1,0 +1,22 @@
+{
+  "name": "bande-news-mobile",
+  "version": "1.0.0",
+  "description": "Bande News - Application iOS",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "sync": "npx cap sync",
+    "ios:open": "npx cap open ios",
+    "ios:run": "npx cap run ios",
+    "ios:build": "npm run build && npx cap sync && npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0"
+  }
+}

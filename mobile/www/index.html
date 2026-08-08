@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>باند نيوز — Bande News</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #1a5c2a; --primary-light: #2a8a42; --primary-dark: #0f3d1a;
+      --accent: #c1272d; --bg: #f5f5f0; --card: #ffffff;
+      --text: #1a1a1a; --text-secondary: #555; --border: #ddd;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08); --radius: 8px;
+    }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    header {
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white;
+      padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15); position: sticky; top: 0; z-index: 100;
+    }
+    header .logo { display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.3rem; font-weight: 700; }
+    header h1 small { font-size: 0.72rem; font-weight: 400; opacity: 0.8; display: block; direction: ltr; }
+    .header-actions { display: flex; gap: 8px; }
+    .btn {
+      padding: 8px 18px; border: none; border-radius: var(--radius); cursor: pointer;
+      font-size: 0.85rem; font-weight: 600; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn:active { transform: scale(0.97); } .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-light); }
+    .btn-accent { background: var(--accent); color: white; }
+    .btn-accent:hover:not(:disabled) { background: #d9353b; }
+    .btn-outline { background: transparent; color: white; border: 1.5px solid rgba(255,255,255,0.5); }
+    .btn-outline:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+    .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
+    .btn-dark { background: #333; color: white; } .btn-dark:hover:not(:disabled) { background: #555; }
+    .btn-blue { background: #2563eb; color: white; } .btn-blue:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-orange { background: #ea580c; color: white; } .btn-orange:hover:not(:disabled) { background: #c2410c; }
+    main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .toolbar .spacer { flex: 1; }
+    .counter { background: var(--primary); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab {
+      padding: 10px 20px; background: #e8e8e3; border: none; border-radius: var(--radius) var(--radius) 0 0;
+      cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.15s; color: var(--text);
+    }
+    .tab:hover { background: #d8d8d3; }
+    .tab.active { background: var(--primary); color: white; }
+    .tab .tab-count { background: rgba(255,255,255,0.3); padding: 1px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 6px; }
+    .tab.active .tab-count { background: rgba(255,255,255,0.25); }
+
+    .category-panel { display: none; }
+    .category-panel.active { display: block; }
+
+    .card {
+      background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+      overflow: hidden; margin-bottom: 6px; transition: all 0.15s; border: 2px solid transparent;
+    }
+    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+    .card.selected { border-color: var(--primary); background: #f0faf3; }
+    .card-header { display: flex; align-items: flex-start; padding: 10px 14px; gap: 10px; }
+    .card-checkbox { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; margin-top: 2px; flex-shrink: 0; }
+    .card-body { flex: 1; min-width: 0; }
+    .card-title { font-size: 0.95rem; line-height: 1.6; cursor: pointer; word-wrap: break-word; }
+    .card-title[contenteditable="true"] { outline: none; background: #fff8e1; padding: 4px 8px; border-radius: 4px; border: 1px dashed #ccc; }
+    .card-date { font-size: 0.75rem; color: #888; direction: ltr; text-align: right; margin-top: 2px; }
+    .card-actions { display: flex; gap: 3px; flex-shrink: 0; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; visibility: hidden; transition: all 0.2s;
+    }
+    .modal-overlay.active { opacity: 1; visibility: visible; }
+    .modal {
+      background: white; border-radius: 12px; padding: 24px; width: 90%;
+      max-width: 900px; max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3); transform: translateY(20px); transition: transform 0.2s;
+    }
+    .modal-overlay.active .modal { transform: translateY(0); }
+    .modal h2 { font-size: 1.15rem; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+
+    .output-area {
+      width: 100%; min-height: 300px; font-family: 'Consolas', monospace; font-size: 0.88rem;
+      padding: 16px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: #1e1e1e; color: #d4d4d4; direction: ltr; resize: vertical;
+    }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: #333; color: white; padding: 12px 24px; border-radius: var(--radius);
+      font-size: 0.9rem; z-index: 300; transition: transform 0.3s; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+    .empty-state p { font-size: 1rem; margin-bottom: 12px; }
+    .loading-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--primary); z-index: 999; display: none; }
+    .loading-bar.active { display: block; animation: loading 1.5s ease-in-out; }
+    @keyframes loading { 0% { width: 0; } 50% { width: 70%; } 100% { width: 100%; } }
+
+    table.translate-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table.translate-table th { background: #f0f0f0; padding: 6px 8px; text-align: center; font-size: 0.8rem; }
+    table.translate-table td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+    table.translate-table tr { cursor: grab; }
+    table.translate-table tr:active { cursor: grabbing; }
+    table.translate-table tr.drag-over { background: #e8f5e9; }
+    table.translate-table tr.row-selected { background: #c8e6c9; }
+    table.translate-table tr.row-selected td { background: transparent; }
+    table.translate-table textarea {
+      width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 5px;
+      font-size: 0.82rem; resize: vertical; font-family: inherit;
+    }
+    table.translate-table .drag-handle { color: #ccc; font-size: 1.1rem; text-align: center; width: 24px; }
+    table.translate-table .drag-handle:hover { color: #999; }
+    .translate-toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .video-progress-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; background: #16213e;
+      border-top: 1px solid #0f3460; padding: 14px 20px; z-index: 400;
+      transform: translateY(100%); transition: transform 0.3s;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+    }
+    .video-progress-bar.active { transform: translateY(0); }
+    .video-progress-bar .vpb-inner { max-width: 1100px; margin: 0 auto; }
+    .video-progress-bar .vpb-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.85rem; color: #ccc; }
+    .video-progress-bar .vpb-label strong { color: #fff; font-size: 0.95rem; }
+    .video-progress-bar .vpb-track { height: 8px; background: #0f3460; border-radius: 4px; overflow: hidden; }
+    .video-progress-bar .vpb-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #e94560, #ff6b6b); border-radius: 4px; transition: width 0.4s ease; }
+    .video-progress-bar .vpb-actions { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
+    .video-progress-bar .vpb-actions a { color: #00d9ff; text-decoration: none; font-size: 0.85rem; }
+    .video-progress-bar .vpb-actions a:hover { text-decoration: underline; }
+
+    .translate-progress { font-size: 0.85rem; color: var(--primary); font-weight: 600; }
+
+    @media (max-width: 640px) {
+      main { padding: 12px; } header { padding: 10px 14px; }
+      .tab { padding: 8px 12px; font-size: 0.8rem; } .btn { padding: 6px 10px; font-size: 0.78rem; }
+    }
+  </style>
+<script src="capacitor-config.js"></script><script>if(window.IS_CAPACITOR){const _fetch=window.fetch;window.fetch=function(url,opts){if(typeof url==='string'&&url.startsWith('/api/')){url=window.API_BASE_URL+url}return _fetch(url,opts)};}</script></head>
+<body>
+  <div class="loading-bar" id="loadingBar"></div>
+  <header>
+    <div class="logo">
+      <h1>باند نيوز<small>Bande News</small></h1>
+    </div>
+    <div class="header-actions">
+      <select id="sourceSelect" style="padding:6px 12px;border-radius:6px;border:none;font-size:0.85rem;font-weight:600;background:rgba(255,255,255,0.15);color:white;" onchange="switchSource()">
+        <option value="map" style="color:#333;background:white;">📰 MAP (mapnews.ma)</option>
+        <option value="snrt" style="color:#333;background:white;">📡 SNRTnews</option>
+      </select>
+      <a href="/collect.html" class="btn btn-outline" style="text-decoration:none;">📱 جمع محلي</a>
+      <button class="btn btn-outline" onclick="loadCollectes()">📂 الأرشيف</button>
+    </div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button class="btn btn-primary" id="btnFetchAll" onclick="fetchAllCategories()">📡 جلب كل الأخبار</button>
+      <button class="btn btn-dark" id="btnSelectAll" onclick="toggleSelectAll()" disabled>✅ تحديد الكل</button>
+      <button class="btn btn-accent" id="btnSave" onclick="saveSelection()" disabled>💾 حفظ وترجمة</button>
+      <button class="btn btn-blue" id="btnPush" onclick="pushToServer()" style="display:none;">🚀 إرسال للخادم</button>
+      <span class="spacer"></span>
+      <span class="counter" id="counter">0 عنصر</span>
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+    <div id="panels"></div>
+
+    <div class="empty-state" id="emptyState">
+      <p>اضغط على "جلب كل الأخبار" لتحميل آخر العناوين من mapnews.ma</p>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="previewModal">
+    <div class="modal">
+      <h2>📄 المعاينة النهائية</h2>
+      <textarea class="output-area" id="outputText"></textarea>
+      <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="copyOutput()">📋 نسخ</button>
+        <button class="btn btn-dark" onclick="downloadTxt()">⬇️ تحميل</button>
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('previewModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="translateModal">
+    <div class="modal" style="max-width:95%;">
+      <h2>🌍 الترجمة — AR / FR / EN</h2>
+      <div class="translate-toolbar">
+        <button class="btn btn-blue" id="btnTranslateFR" onclick="autoTranslate('fr')">🇫🇷 ترجمة فرنسي</button>
+        <button class="btn btn-orange" id="btnTranslateEN" onclick="autoTranslate('en')">🇬🇧 ترجمة إنجليزي</button>
+        <span class="spacer"></span>
+        <button class="btn btn-sm btn-dark" onclick="moveSelectedRows(-1)">⬆️</button>
+        <button class="btn btn-sm btn-dark" onclick="moveSelectedRows(1)">⬇️</button>
+        <span class="translate-progress" id="translateProgress"></span>
+      </div>
+      <div id="translateContent"></div>
+      <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="generateDocument()">📄 إنشاء الوثيقة</button>
+        <button class="btn btn-accent" id="btnGenerateVideo" onclick="generateVideo()">🎬 Générer la bande</button>
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('translateModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="archiveModal">
+    <div class="modal">
+      <h2>📂 الأرشيف</h2>
+      <div id="archiveList" style="max-height:400px; overflow-y:auto;"></div>
+      <div style="margin-top:14px; text-align:left;">
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('archiveModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="localModal">
+    <div class="modal" style="max-width:95%;">
+      <h2>📱 جمع محلي — Mode Local</h2>
+      <div style="margin-bottom:16px; font-size:0.88rem; line-height:1.8; direction:ltr;">
+        <p><strong>Étape 1 :</strong> Ouvrez une catégorie dans un nouvel onglet :</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;">
+          <a href="https://www.mapnews.ma/ar/activites_royales" target="_blank" class="btn btn-sm btn-dark">Activités royales</a>
+          <a href="https://www.mapnews.ma/ar/activites_princieres" target="_blank" class="btn btn-sm btn-dark">Activités princières</a>
+          <a href="https://www.mapnews.ma/ar/actualites/politique" target="_blank" class="btn btn-sm btn-dark">Politique</a>
+          <a href="https://www.mapnews.ma/ar/actualites/social" target="_blank" class="btn btn-sm btn-dark">Société</a>
+          <a href="https://www.mapnews.ma/ar/actualites/economie" target="_blank" class="btn btn-sm btn-dark">Économie</a>
+        </div>
+        <p><strong>Étape 2 :</strong> Sur la page ouverte, appuyez longuement → <em>Sélectionner tout</em> → <em>Copier</em></p>
+        <p><strong>Étape 3 :</strong> Collez le contenu ci-dessous et cliquez <em>Analyser</em></p>
+      </div>
+      <select id="localCatSelect" style="width:100%; padding:8px; margin-bottom:10px; font-size:0.9rem; border-radius:6px; border:1px solid #ccc;">
+        <option value="activites_royales">Activités royales — الأنشطة الملكية</option>
+        <option value="activites_princieres">Activités princières — الأنشطة الأميرية</option>
+        <option value="politique" selected>Politique — السياسة</option>
+        <option value="social">Société — المجتمع</option>
+        <option value="economie">Économie — الاقتصاد</option>
+      </select>
+      <textarea id="localHtmlInput" style="width:100%; min-height:200px; font-family:monospace; font-size:0.8rem; padding:12px; border:1px solid #ccc; border-radius:8px; direction:ltr;" placeholder="Collez ici le contenu de la page..."></textarea>
+      <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="parseLocalHtml()">🔍 تحليل — Analyser</button>
+        <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('localModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="video-progress-bar" id="videoProgressBar">
+    <div class="vpb-inner">
+      <div class="vpb-label">
+        <span id="vpbMessage">Préparation...</span>
+        <strong id="vpbPercent">0%</strong>
+      </div>
+      <div class="vpb-track"><div class="vpb-fill" id="vpbFill"></div></div>
+      <div class="vpb-actions" id="vpbActions" style="display:none;">
+        <a id="vpbLink" href="#" target="_blank">📥 Télécharger la vidéo</a>
+        <span style="color:#888;font-size:0.8rem;">—</span>
+        <a href="#" onclick="document.getElementById('videoProgressBar').classList.remove('active');return false;" style="color:#888;font-size:0.8rem;">Fermer</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let categoriesData = {};
+    let selectedIds = {};
+    let categoryLabels = {};
+    let activeTab = null;
+    let translating = false;
+
+    function showToast(msg) {
+      const t = document.getElementById("toast"); t.textContent = msg;
+      t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2500);
+    }
+    function showLoading() { document.getElementById("loadingBar").classList.add("active"); }
+    function hideLoading() { document.getElementById("loadingBar").classList.remove("active"); }
+
+    function updateCounter() {
+      let total = 0;
+      for (const k in selectedIds) total += selectedIds[k].size;
+      document.getElementById("counter").textContent = `${total} عنصر`;
+      document.getElementById("btnSave").disabled = total === 0;
+      let hasArticles = false;
+      for (const k in categoriesData) if (categoriesData[k]?.length) hasArticles = true;
+      document.getElementById("btnSelectAll").disabled = !hasArticles;
+    }
+
+    function buildTabs() {
+      const tabsEl = document.getElementById("tabs");
+      const panelsEl = document.getElementById("panels");
+      tabsEl.innerHTML = "";
+      panelsEl.innerHTML = "";
+
+      for (const catKey in categoriesData) {
+        const label = categoryLabels[catKey] || catKey;
+        const count = selectedIds[catKey]?.size || 0;
+
+        const tab = document.createElement("button");
+        tab.className = `tab${activeTab === catKey ? " active" : ""}`;
+        tab.innerHTML = `${label} <span class="tab-count">${count}</span>`;
+        tab.onclick = () => switchTab(catKey);
+        tabsEl.appendChild(tab);
+
+        const panel = document.createElement("div");
+        panel.className = `category-panel${activeTab === catKey ? " active" : ""}`;
+        panel.id = `panel-${catKey}`;
+        panel.innerHTML = renderCategoryCards(catKey);
+        panelsEl.appendChild(panel);
+      }
+      updateCounter();
+    }
+
+    function switchTab(catKey) { activeTab = catKey; buildTabs(); }
+
+    function renderCategoryCards(catKey) {
+      const articles = categoriesData[catKey] || [];
+      if (!articles.length) return '<div class="empty-state"><p>لا توجد مقالات</p></div>';
+      return articles.map(a => {
+        const sel = selectedIds[catKey]?.has(a.id);
+        const dateHtml = a.date ? `<div class="card-date">📅 ${a.date}</div>` : "";
+        return `<div class="card ${sel ? "selected" : ""}" data-cat="${catKey}" data-id="${a.id}">
+          <div class="card-header">
+            <input type="checkbox" class="card-checkbox" ${sel ? "checked" : ""}
+              onchange="toggleArticle('${catKey}',${a.id})" />
+            <div class="card-body">
+              <div class="card-title" id="title-${catKey}-${a.id}" dir="rtl">${a.title}</div>
+              ${dateHtml}
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-sm btn-dark" onclick="editTitle('${catKey}',${a.id})">✏️</button>
+              <button class="btn btn-sm btn-accent" onclick="removeArticle('${catKey}',${a.id})">🗑</button>
+            </div>
+          </div>
+        </div>`;
+      }).join("");
+    }
+
+    function toggleArticle(catKey, id) {
+      if (!selectedIds[catKey]) selectedIds[catKey] = new Set();
+      if (selectedIds[catKey].has(id)) selectedIds[catKey].delete(id);
+      else selectedIds[catKey].add(id);
+      buildTabs();
+    }
+
+    function toggleSelectAll() {
+      const catKey = activeTab;
+      if (!catKey || !categoriesData[catKey]) return;
+      const all = categoriesData[catKey];
+      if (!selectedIds[catKey]) selectedIds[catKey] = new Set();
+      if (selectedIds[catKey].size === all.length) selectedIds[catKey].clear();
+      else all.forEach(a => selectedIds[catKey].add(a.id));
+      buildTabs();
+    }
+
+    function editTitle(catKey, id) {
+      const el = document.getElementById(`title-${catKey}-${id}`);
+      el.contentEditable = "true"; el.focus();
+      const r = document.createRange(); r.selectNodeContents(el);
+      window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+      const done = () => {
+        el.contentEditable = "false";
+        const a = categoriesData[catKey].find(x => x.id === id);
+        if (a) a.title = el.textContent.trim();
+        el.removeEventListener("blur", done); el.removeEventListener("keydown", onKey);
+      };
+      const onKey = (e) => { if (e.key==="Enter"){e.preventDefault();done();} if(e.key==="Escape"){el.textContent=categoriesData[catKey].find(x=>x.id===id)?.title||"";done();} };
+      el.addEventListener("blur", done); el.addEventListener("keydown", onKey);
+    }
+
+    function removeArticle(catKey, id) {
+      categoriesData[catKey] = categoriesData[catKey].filter(a => a.id !== id);
+      if (selectedIds[catKey]) selectedIds[catKey].delete(id);
+      categoriesData[catKey].forEach((a, i) => a.id = i + 1);
+      buildTabs();
+    }
+
+    const CATEGORIES = {
+      activites_royales: { label: "أنشطة ملكية", label_fr: "Activités royales", url: "/ar/activites-royales" },
+      activites_princieres: { label: "أنشطة أميرية", label_fr: "Activités princières", url: "/ar/activites-princieres" },
+      politique: { label: "سياسة", label_fr: "Politique", url: "/ar/actualites/politique" },
+      social: { label: "مجتمع", label_fr: "Société", url: "/ar/actualites/social" },
+      economie: { label: "إقتصاد", label_fr: "Économie", url: "/ar/actualites/economie" },
+    };
+
+    const SNRT_CATEGORIES = {
+      activites_royales: { label: "الأنشطة الملكية", label_fr: "Activités royales", url: "/thematique/الأنشطة-الملكية" },
+      activites_princieres: { label: "الأنشطة الأميرية", label_fr: "Activités princières", url: "/thematique/الأنشطة-الأميرية" },
+      politique: { label: "سياسة", label_fr: "Politique", url: "/thematique/سياسة" },
+      sport: { label: "رياضة", label_fr: "Sport", url: "/thematique/رياضة" },
+      social: { label: "مجتمع", label_fr: "Société", url: "/thematique/مجتمع" },
+      economie: { label: "اقتصاد", label_fr: "Économie", url: "/thematique/اقتصاد" },
+      culture: { label: "فن و ثقافة", label_fr: "Culture", url: "/thematique/فن-وثقافة" },
+      monde: { label: "عالم", label_fr: "Monde", url: "/thematique/عالم" },
+      technologie: { label: "تكنولوجيا", label_fr: "Technologie", url: "/thematique/تكنولوجيا" },
+      afrique: { label: "إفريقيا", label_fr: "Afrique", url: "/thematique/إفريقيا" },
+    };
+
+    const SNRT_CAT_MAP = {
+      "الأنشطة الملكية": "activites_royales",
+      "الأنشطة الأميرية": "activites_princieres",
+      "سياسة": "politique",
+      "رياضة": "sport",
+      "مجتمع": "social",
+      "اقتصاد": "economie",
+      "فن و ثقافة": "culture",
+      "عالم": "monde",
+      "تكنولوجيا": "technologie",
+      "إفريقيا": "afrique",
+    };
+
+function parseSnrtCategoryPage(html, catKey) {
+      const articles = [];
+      const seen = new Set();
+
+      // Parse flash news items
+      const flashRe = /<li class="flash-news"[^>]*>[\s\S]*?<div class="date-flashnews">(\d{2}:\d{2})<\/div>[\s\S]*?<h2>([^<]+)<\/h2>[\s\S]*?<h3[^>]*><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h3>[\s\S]*?<\/li>/g;
+      let m;
+      while ((m = flashRe.exec(html)) !== null) {
+        const title = decodeHtmlEntities(m[3]).replace(/\s+/g, " ").trim();
+        if (!title || title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+        articles.push({ title, date: m[1], category: catKey });
+      }
+
+      // Parse thematic section articles
+      const thematicRe = /<div class="holder-thematique-home"[^>]*>[\s\S]*?<div class="date_publication">(\d{2}\/\d{2}\/\d{4}) - (\d{2}:\d{2})<\/div>[\s\S]*?<div class="info_thematique_home">[\s\S]*?<h2><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h2>[\s\S]*?<\/div>/g;
+      while ((m = thematicRe.exec(html)) !== null) {
+        const title = decodeHtmlEntities(m[3]).replace(/\s+/g, " ").trim();
+        if (!title || title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+        articles.push({ title, date: m[1], category: catKey });
+      }
+
+      // Parse main featured article
+      const mainRe = /<h1 class="news_title_une"><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h1>/;
+      const mainMatch = html.match(mainRe);
+      if (mainMatch) {
+        const title = decodeHtmlEntities(mainMatch[1]).replace(/\s+/g, " ").trim();
+        if (title && title.length >= 10 && !seen.has(title)) {
+          seen.add(title);
+          articles.unshift({ title, date: "", category: catKey });
+        }
+      }
+
+      return articles;
+    }
+
+    const TITMIMA = "\u062A\u0640\u062A\u0640\u0645\u0640\u0629";
+
+    function decodeHtmlEntities(str) {
+      const el = document.createElement("textarea");
+      el.innerHTML = str;
+      return el.value;
+    }
+
+    function extractActualites(html) {
+      const articles = [];
+      const seen = new Set();
+      const blocks = html.split(/<div class="block-1">/);
+      for (const block of blocks) {
+        const tm = block.match(/<span class="field-content"><a href="\/ar\/actualites\/[^"]+">([^<]+)<\/a><\/span>/);
+        if (!tm) continue;
+        const title = decodeHtmlEntities(tm[1]).replace(/\s+/g, " ").trim();
+        if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
+        seen.add(title);
+        const dm = block.match(/<div class="field-content date-actualites">([^<]+)<\/div>/);
+        articles.push({ title, date: dm ? dm[1].trim() : "" });
+      }
+      return articles;
+    }
+
+    function extractRoyales(html) {
+      const articles = [];
+      const seen = new Set();
+      const rows = html.split(/<div class="element_over_hidden views-row/);
+      for (const row of rows) {
+        const tm = row.match(/page_second_title[^>]*><a href="\/ar\/activites-royales\/[^"]+">([^<]+)<\/a>/);
+        if (!tm) continue;
+        const title = decodeHtmlEntities(tm[1]).replace(/\s+/g, " ").trim();
+        if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
+        seen.add(title);
+        const dm = row.match(/<div class="field-content node-date">([^<]+)<\/div>/);
+        articles.push({ title, date: dm ? dm[1].trim() : "" });
+      }
+      if (articles.length < 3) {
+        const re = /<span class="field-content page_(?:first|second)_title"><a href="\/ar\/activites-royales\/[^"]+">([^<]+)<\/a><\/span>/gi;
+        let m;
+        while ((m = re.exec(html)) !== null) {
+          const title = decodeHtmlEntities(m[1]).replace(/\s+/g, " ").trim();
+          if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
+          seen.add(title);
+          articles.push({ title, date: "" });
+        }
+      }
+      return articles;
+    }
+
+    function parseArticles(html, catKey) {
+      return catKey === "activites_royales" ? extractRoyales(html) : extractActualites(html);
+    }
+
+    let currentSource = "map";
+
+    function switchSource() {
+      currentSource = document.getElementById("sourceSelect").value;
+      categoriesData = {};
+      selectedIds = {};
+      activeTab = null;
+      document.getElementById("emptyState").style.display = "";
+      document.getElementById("panels").innerHTML = "";
+      document.getElementById("tabs").innerHTML = "";
+      updateCounter();
+      if (currentSource === "snrt") {
+        fetchAllCategories();
+      }
+    }
+
+    async function fetchAllCategories() {
+      const btn = document.getElementById("btnFetchAll");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> جاري التحميل...';
+      showLoading();
+
+      let categories = {};
+      let errors = [];
+
+      try {
+        if (currentSource === "snrt") {
+          // Try server API first for SNRT
+          btn.innerHTML = '<span class="spinner"></span> SNRTnews — via serveur...';
+          showToast("📡 SNRTnews: جاري الجلب من الخادم...");
+          try {
+            const res = await fetch("/api/snrt/fetch?category=all&limit=20");
+            const data = await res.json();
+            if (data.success && data.total > 0) {
+              // Group articles by category
+              const grouped = {};
+              for (const a of data.articles) {
+                const key = a.category || "general";
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(a);
+              }
+              for (const catKey in SNRT_CATEGORIES) {
+                const cat = SNRT_CATEGORIES[catKey];
+                const arts = (grouped[catKey] || []).slice(0, 20).map((a, idx) => ({
+                  id: idx + 1, title: a.title, date: a.date, category: catKey,
+                  category_label: cat.label, category_label_fr: cat.label_fr,
+                }));
+                categories[catKey] = arts;
+              }
+            }
+          } catch (err) {
+            errors.push({ category: "snrt", error: err.message });
+          }
+
+          const total = Object.values(categories).reduce((s, a) => s + a.length, 0);
+          showToast(`✅ ${total} خبر من SNRTnews`);
+        } else {
+          // Try server API first (Wayback Machine fallback on server)
+          btn.innerHTML = '<span class="spinner"></span> MAP — via serveur...';
+          try {
+            const res = await fetch("/api/fetch-all?limit=20");
+            const data = await res.json();
+            if (data.success) {
+              categories = data.categories;
+            }
+          } catch (err) {
+            errors.push({ category: "all", error: err.message });
+          }
+
+        }
+
+        const src = currentSource === "snrt" ? SNRT_CATEGORIES : CATEGORIES;
+        categoriesData = {};
+        for (const k in src) {
+          categoriesData[k] = categories[k] || [];
+          selectedIds[k] = new Set();
+          categoryLabels[k] = categories[k]?.[0]?.category_label_fr || src[k]?.label_fr || k;
+        }
+        const total = Object.values(categoriesData).reduce((s, a) => s + a.length, 0);
+        activeTab = Object.keys(categoriesData).find(k => categoriesData[k]?.length) || Object.keys(categoriesData)[0] || null;
+        if (total === 0) {
+          document.getElementById("emptyState").style.display = "";
+          document.getElementById("emptyState").innerHTML = '<p>❌ Aucun article trouvé. Le site source a peut-être changé.</p><p>Essayez la source <strong>SNRTnews</strong> en haut à droite.</p>';
+        } else {
+          document.getElementById("emptyState").style.display = "none";
+        }
+        buildTabs();
+
+        showToast(`✅ ${total} خبر من ${Object.keys(categoriesData).length} rubriques`);
+        if (errors.length) showToast(`⚠️ ${errors.length} erreurs`);
+      } catch (err) {
+        showToast("❌ " + err.message);
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = "📡 جلب كل الأخبار";
+      hideLoading();
+    }
+
+    async function saveSelection() {
+      const selected = [];
+      for (const catKey in selectedIds) {
+        const arts = categoriesData[catKey] || [];
+        for (const a of arts) {
+          if (selectedIds[catKey].has(a.id)) {
+            selected.push({ ...a, category_key: catKey });
+          }
+        }
+      }
+      if (!selected.length) return;
+
+      const payload = {
+        metadata: { source: "mapnews.ma", collect_date: new Date().toISOString(), total_articles: selected.length },
+        articles: selected.map((a, i) => ({ id: i + 1, ar: a.title, date: a.date, category: a.category_label_fr, category_key: a.category_key })),
+      };
+
+      try {
+        const res = await fetch("/api/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (data.success) { showToast(`✅ تم الحفظ: ${data.filename}`); openTranslateModal(selected); }
+      } catch { showToast("❌ خطأ في الحفظ"); }
+    }
+
+    function openTranslateModal(selected) {
+      const modal = document.getElementById("translateModal");
+      const content = document.getElementById("translateContent");
+      const grouped = {};
+      selected.forEach(a => {
+        const cat = a.category_label_fr || "Autre";
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(a);
+      });
+
+      let rows = "";
+      let idx = 0;
+      for (const cat in grouped) {
+        rows += `<tr><td colspan="5" style="background:#1a5c2a;color:white;padding:8px;font-weight:bold;text-align:right;">${cat}</td></tr>`;
+        for (const a of grouped[cat]) {
+          const dateStr = a.date ? a.date : "";
+          rows += `<tr draggable="true" data-idx="${idx}">
+            <td class="drag-handle" title="Glisser pour réorganiser">☰</td>
+            <td style="width:8%;text-align:center;font-size:0.75rem;color:#888;white-space:nowrap;">${dateStr}</td>
+            <td style="width:31%;direction:rtl;"><textarea data-idx="${idx}" data-lang="ar" rows="2">${a.title}</textarea></td>
+            <td style="width:31%;"><textarea data-idx="${idx}" data-lang="fr" rows="2" placeholder="Traduction..."></textarea></td>
+            <td style="width:31%;"><textarea data-idx="${idx}" data-lang="en" rows="2" placeholder="Translation..."></textarea></td>
+          </tr>`;
+          idx++;
+        }
+      }
+
+      content.innerHTML = `
+        <table class="translate-table">
+          <thead><tr><th style="width:24px;"></th><th style="width:8%;">📅</th><th style="text-align:right;width:31%;">🇲🇦 العربية</th><th style="width:31%;">🇫🇷 Français</th><th style="width:31%;">🇬🇧 English</th></tr></thead>
+          <tbody id="translateBody">${rows}</tbody>
+        </table>`;
+      initTranslateDragDrop();
+      modal.classList.add("active");
+    }
+
+    function getTranslationsFromForm() {
+      const arts = [];
+      document.querySelectorAll('textarea[data-lang="ar"]').forEach(arEl => {
+        const idx = arEl.dataset.idx;
+        const frEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="fr"]`);
+        const enEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="en"]`);
+        arts.push({ ar: arEl.value.trim(), fr: frEl?.value.trim() || "", en: enEl?.value.trim() || "" });
+      });
+      return arts;
+    }
+
+    async function autoTranslate(targetLang) {
+      if (translating) return;
+      translating = true;
+      const langLabel = targetLang === "fr" ? "FR" : "EN";
+      const btn = document.getElementById(targetLang === "fr" ? "btnTranslateFR" : "btnTranslateEN");
+      const progress = document.getElementById("translateProgress");
+
+      const arTextareas = document.querySelectorAll('textarea[data-lang="ar"]');
+      const texts = [];
+      const indices = [];
+      arTextareas.forEach(el => {
+        const idx = el.dataset.idx;
+        const targetEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="${targetLang}"]`);
+        if (targetEl && el.value.trim()) {
+          texts.push(el.value.trim());
+          indices.push(idx);
+        }
+      });
+
+      if (!texts.length) { translating = false; return; }
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> جاري الترجمة...`;
+
+      const BATCH_SIZE = 10;
+      const totalBatches = Math.ceil(texts.length / BATCH_SIZE);
+
+      try {
+        for (let batch = 0; batch < totalBatches; batch++) {
+          const start = batch * BATCH_SIZE;
+          const end = Math.min(start + BATCH_SIZE, texts.length);
+          const batchTexts = texts.slice(start, end);
+          const batchIndices = indices.slice(start, end);
+
+          progress.textContent = `${langLabel}: ${end}/${texts.length}`;
+
+          const res = await fetch("/api/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texts: batchTexts, target_lang: targetLang }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+
+          for (let i = 0; i < batchIndices.length; i++) {
+            const el = document.querySelector(`textarea[data-idx="${batchIndices[i]}"][data-lang="${targetLang}"]`);
+            if (el && data.translations[i]) {
+              el.value = data.translations[i];
+              el.style.background = "#f0faf3";
+            }
+          }
+        }
+        showToast(`✅ ${langLabel}: ${texts.length} traductions`);
+      } catch (err) {
+        showToast("❌ " + err.message);
+      }
+
+      progress.textContent = "";
+      btn.disabled = false;
+      btn.innerHTML = targetLang === "fr" ? "🇫🇷 ترجمة فرنسي" : "🇬🇧 ترجمة إنجليزي";
+      translating = false;
+    }
+
+    let draggedRow = null;
+
+    function initTranslateDragDrop() {
+      const tbody = document.getElementById("translateBody");
+      if (!tbody) return;
+      tbody.querySelectorAll("tr[data-idx]").forEach(row => {
+        row.addEventListener("click", function(e) {
+          if (e.target.tagName === "TEXTAREA" || e.target.tagName === "TD") return;
+          this.classList.toggle("row-selected");
+        });
+        row.addEventListener("dragstart", handleDragStart);
+        row.addEventListener("dragover", handleDragOver);
+        row.addEventListener("dragleave", handleDragLeave);
+        row.addEventListener("drop", handleDrop);
+        row.addEventListener("dragend", handleDragEnd);
+      });
+    }
+
+    function handleDragStart(e) {
+      draggedRow = this;
+      this.style.opacity = "0.5";
+      e.dataTransfer.effectAllowed = "move";
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (this !== draggedRow) this.classList.add("drag-over");
+    }
+
+    function handleDragLeave() {
+      this.classList.remove("drag-over");
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      if (this === draggedRow) return;
+      this.classList.remove("drag-over");
+      const tbody = document.getElementById("translateBody");
+      const rows = Array.from(tbody.querySelectorAll("tr[data-idx]"));
+      const draggedIdx = rows.indexOf(draggedRow);
+      const targetIdx = rows.indexOf(this);
+      if (draggedIdx < targetIdx) {
+        tbody.insertBefore(draggedRow, this.nextSibling);
+      } else {
+        tbody.insertBefore(draggedRow, this);
+      }
+      reorderIndices();
+    }
+
+    function handleDragEnd() {
+      this.style.opacity = "1";
+      document.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+      draggedRow = null;
+    }
+
+function reorderIndices() {
+      const tbody = document.getElementById("translateBody");
+      if (!tbody) return;
+      let globalIdx = 0;
+      tbody.querySelectorAll("tr[data-idx]").forEach(row => {
+        row.dataset.idx = globalIdx;
+        row.querySelectorAll("textarea").forEach(ta => {
+          ta.dataset.idx = globalIdx;
+        });
+        globalIdx++;
+      });
+    }
+
+    function moveSelectedRows(dir) {
+      const tbody = document.getElementById("translateBody");
+      if (!tbody) return;
+      const rows = Array.from(tbody.querySelectorAll("tr[data-idx]"));
+      const selected = rows.filter(r => r.classList.contains("row-selected"));
+      if (!selected.length) return;
+      selected.forEach(r => r.classList.remove("row-selected"));
+      const firstSelected = rows.indexOf(selected[0]);
+      const newIdx = firstSelected + dir;
+      if (newIdx < 0 || newIdx >= rows.length) return;
+      selected.forEach(r => {
+        r.classList.remove("row-selected");
+        if (dir > 0) {
+          tbody.insertBefore(r, rows[newIdx + 1] || null);
+        } else {
+          tbody.insertBefore(r, rows[newIdx]);
+        }
+      });
+      reorderIndices();
+    }
+
+    function getTranslationsFromForm() {
+      const arts = [];
+      document.querySelectorAll('textarea[data-lang="ar"]').forEach(arEl => {
+        const idx = arEl.dataset.idx;
+        const frEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="fr"]`);
+        const enEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="en"]`);
+        arts.push({ ar: arEl.value.trim(), fr: frEl?.value.trim() || "", en: enEl?.value.trim() || "" });
+      });
+      return arts;
+    }
+
+    async function generateDocument() {
+      const arts = getTranslationsFromForm();
+      try {
+        const res = await fetch("/api/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ articles: arts }) });
+        const data = await res.json();
+        if (!data.success) throw new Error("Export failed");
+        closeModal("translateModal");
+        document.getElementById("outputText").value = data.content;
+        document.getElementById("previewModal").classList.add("active");
+        showToast("✅ تم إنشاء الوثيقة");
+      } catch { showToast("❌ خطأ في التصدير"); }
+    }
+
+    function copyOutput() {
+      navigator.clipboard.writeText(document.getElementById("outputText").value).then(() => showToast("📋 تم النسخ!"));
+    }
+
+    function downloadTxt() {
+      const text = document.getElementById("outputText").value;
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      const d = new Date(), pad = n => String(n).padStart(2, "0");
+      a.href = URL.createObjectURL(blob);
+      a.download = `bande-news_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.txt`;
+      a.click();
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.remove("active"); }
+    document.querySelectorAll(".modal-overlay").forEach(o => o.addEventListener("click", e => { if (e.target === o) o.classList.remove("active"); }));
+
+    function openLocalMode() {
+      document.getElementById("localModal").classList.add("active");
+    }
+
+    function parseLocalHtml() {
+      const catKey = document.getElementById("localCatSelect").value;
+      const cat = CATEGORIES[catKey];
+      const raw = document.getElementById("localHtmlInput").value.trim();
+
+      if (!raw) { showToast("❌ Collez le contenu d'abord"); return; }
+
+      let articles = parseArticles(raw, catKey);
+
+      if (articles.length === 0 && raw.includes("<")) {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = raw;
+        const textContent = tempDiv.textContent || tempDiv.innerText || "";
+        const lines = textContent.split("\n").map(l => l.trim()).filter(l => l.length >= 15 && l !== TITMIMA);
+        const seen = new Set();
+        for (const line of lines) {
+          if (!seen.has(line)) { seen.add(line); articles.push({ title: line, date: "" }); }
+        }
+      }
+
+      if (articles.length === 0) { showToast("❌ Aucun article trouvé"); return; }
+
+      const formatted = articles.slice(0, 30).map((a, i) => ({
+        id: i + 1,
+        title: a.title,
+        date: a.date,
+        category: catKey,
+        category_label: cat.label,
+        category_label_fr: cat.label_fr,
+      }));
+
+      categoriesData[catKey] = formatted;
+      selectedIds[catKey] = new Set();
+      categoryLabels[catKey] = cat.label_fr;
+      activeTab = catKey;
+      document.getElementById("emptyState").style.display = "none";
+      buildTabs();
+      closeModal("localModal");
+      showToast(`✅ ${formatted.length} article(s) — ${cat.label_fr}`);
+
+      fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categories: { [catKey]: formatted } }),
+      }).catch(() => {});
+    }
+
+    async function loadCollectes() {
+      try {
+        const res = await fetch("/api/collectes");
+        const data = await res.json();
+        const list = document.getElementById("archiveList");
+        if (!data.files.length) { list.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">لا توجد مجموعات</p>'; }
+        else { list.innerHTML = data.files.map(f => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #eee;direction:ltr;"><span style="font-size:0.85rem;">📄 ${f.name}</span><button class="btn btn-sm btn-primary" onclick="loadCollecte('${f.name}')">تحميل</button></div>`).join(""); }
+        document.getElementById("archiveModal").classList.add("active");
+      } catch { showToast("❌ خطأ"); }
+    }
+
+    async function loadCollecte(filename) {
+      try {
+        const res = await fetch(`/api/collecte/${filename}`);
+        const data = await res.json();
+        for (const a of (data.articles || [])) {
+          const catKey = a.category_key || "politique";
+          if (!categoriesData[catKey]) { categoriesData[catKey] = []; selectedIds[catKey] = new Set(); }
+          categoriesData[catKey].push({ id: categoriesData[catKey].length + 1, title: a.ar, date: a.date || "", category_label_fr: a.category || catKey });
+        }
+        activeTab = Object.keys(categoriesData)[0];
+        closeModal("archiveModal");
+        document.getElementById("emptyState").style.display = "none";
+        buildTabs();
+        showToast("✅ تم التحميل");
+      } catch { showToast("❌ خطأ"); }
+    }
+
+    const DOKPLOY_URL_KEY = "bandenews_dokploy_url";
+
+    function getDokployUrl() {
+      let url = localStorage.getItem(DOKPLOY_URL_KEY);
+      if (!url) {
+        url = prompt("Entrez l'URL de votre serveur Dokploy :\nex: https://bande-news.votre-domaine.com");
+        if (url) {
+          url = url.trim().replace(/\/$/, "");
+          localStorage.setItem(DOKPLOY_URL_KEY, url);
+        }
+      }
+      return url;
+    }
+
+    async function pushToServer() {
+      const serverUrl = getDokployUrl();
+      if (!serverUrl) return;
+
+      const btn = document.getElementById("btnPush");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> إرسال...';
+
+      try {
+        const res = await fetch(serverUrl + "/api/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categories: categoriesData }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("✅ " + (data.total || 0) + " articles envoyés au serveur");
+        } else {
+          showToast("❌ " + (data.error || "Erreur"));
+        }
+      } catch (err) {
+        showToast("❌ Erreur réseau: " + err.message);
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = "🚀 إرسال للخادم";
+    }
+
+    function showPushButtonIfLocal() {
+      if (location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname.startsWith("192.168.")) {
+        document.getElementById("btnPush").style.display = "inline-flex";
+      }
+    }
+
+    addEventListener("source", function(e) {
+      showToast(`📡 Source: ${e.detail === "snrt" ? "SNRTnews" : "MAP (mapnews.ma)"}`);
+    });
+
+    let videoPollTimer = null;
+
+    async function generateVideo() {
+      const arts = getTranslationsFromForm();
+      if (!arts.length) { showToast("❌ Aucun article à générer"); return; }
+
+      const bar = document.getElementById("videoProgressBar");
+      const fill = document.getElementById("vpbFill");
+      const msg = document.getElementById("vpbMessage");
+      const pct = document.getElementById("vpbPercent");
+      const actions = document.getElementById("vpbActions");
+
+      bar.classList.add("active");
+      fill.style.width = "0%";
+      msg.textContent = "Envoi des articles...";
+      pct.textContent = "0%";
+      actions.style.display = "none";
+
+      try {
+        const res = await fetch("/api/generate-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ articles: arts }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Échec du lancement");
+        pollVideoStatus();
+      } catch (e) {
+        showToast("❌ " + e.message);
+        bar.classList.remove("active");
+      }
+    }
+
+    async function pollVideoStatus() {
+      if (videoPollTimer) clearTimeout(videoPollTimer);
+      try {
+        const res = await fetch("/api/video-status?t=" + Date.now());
+        const s = await res.json();
+
+        const fill = document.getElementById("vpbFill");
+        const msg = document.getElementById("vpbMessage");
+        const pct = document.getElementById("vpbPercent");
+
+        fill.style.width = (s.percent || 0) + "%";
+        pct.textContent = (s.percent || 0) + "%";
+        msg.textContent = s.message || "...";
+
+        if (s.phase === "completed") {
+          showToast("✅ Vidéo générée");
+          const actions = document.getElementById("vpbActions");
+          const link = document.getElementById("vpbLink");
+          if (s.videoPath) {
+            link.href = "/videos/" + s.videoPath;
+          }
+          actions.style.display = "flex";
+          return;
+        }
+        if (s.phase === "error") {
+          showToast("❌ " + (s.message || "Erreur"));
+          return;
+        }
+        videoPollTimer = setTimeout(pollVideoStatus, 2000);
+      } catch {
+        videoPollTimer = setTimeout(pollVideoStatus, 3000);
+      }
+    }
+
+    (async () => {
+      try {
+        const res = await fetch("/api/categories");
+        const data = await res.json();
+        if (data.success) {
+          for (const c of data.categories) {
+            categoriesData[c.key] = [];
+            selectedIds[c.key] = new Set();
+            categoryLabels[c.key] = c.label_fr;
+          }
+          activeTab = data.categories[0]?.key;
+          buildTabs();
+        }
+      } catch {}
+      showPushButtonIfLocal();
+    })();
+  </script>
+</body>
+</html>
