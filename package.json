@@ -1,6 +1,6 @@
 {
   "name": "bande-news",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Collecte et validation des informations recentes de mapnews.ma",
   "type": "module",
   "main": "desktop/main.js",

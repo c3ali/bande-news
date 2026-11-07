@@ -41,15 +41,33 @@ function escapeHtml(str) {
 }
 
 function buildArticlesList(articlesByCategory, vidConfig) {
+  const perCat = vidConfig.items_per_category;
+  const order = vidConfig.categories_order || [];
   const articles = [];
-  for (const catKey of vidConfig.categories_order) {
-    const items = (articlesByCategory[catKey] || []).slice(0, vidConfig.items_per_category);
+  for (const catKey of order) {
+    const items = (articlesByCategory[catKey] || []).slice(0, perCat);
     for (const article of items) {
       articles.push({
         ar: article.title,
         fr: article.title_fr || "",
         en: article.title_en || "",
       });
+    }
+  }
+  // Aucun article dans les categories attendues ? (selection manuelle dans
+  // l'interface, imports, categories SNRT...) On garde tout ce qui est
+  // disponible, dans l'ordre naturel des categories.
+  if (articles.length === 0) {
+    for (const items of Object.values(articlesByCategory)) {
+      for (const article of items) {
+        if (article && article.title && article.title.length > 3) {
+          articles.push({
+            ar: article.title,
+            fr: article.title_fr || "",
+            en: article.title_en || "",
+          });
+        }
+      }
     }
   }
   return articles;
@@ -290,7 +308,10 @@ async function main() {
     if (total === 0) {
       console.log("   Cache vide, appel API /api/fetch-all...");
       const allData = await fetchJson(`${API_BASE}/api/fetch-all?limit=10`);
-      articlesByCategory = allData.categories;
+      articlesByCategory = (allData && allData.categories) ? allData.categories : {};
+      if (!articlesByCategory || Object.keys(articlesByCategory).length === 0) {
+        throw new Error("L'API n'a retourné aucun article (collecte impossible).");
+      }
       for (const cat of Object.values(articlesByCategory)) { total += (cat || []).length; }
       console.log(`   ${total} articles chargés depuis l'API`);
     }
