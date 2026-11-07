@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Collecte et validation des informations recentes de mapnews.ma",
   "type": "module",
-  "main": "src/index.js",
+  "main": "desktop/main.js",
   "scripts": {
     "start": "node src/server.js",
     "server": "node src/server.js",
@@ -12,10 +12,53 @@
     "video": "node src/generate-video.js",
     "snrt": "node src/snrt-collect.js",
     "snrt-test": "node src/test-snrt.js",
-    "snrt-api": "node src/snrt-fetcher.js"
+    "snrt-api": "node src/snrt-fetcher.js",
+    "desktop": "electron desktop/main.js",
+    "icon": "node scripts/make-icon.mjs",
+    "desktop:build": "electron-builder --win --mac",
+    "desktop:build:win": "electron-builder --win",
+    "desktop:build:mac": "electron-builder --mac"
   },
   "dependencies": {
     "express": "^5.2.1",
     "inquirer": "^12.6.0"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.bandenews.app",
+    "productName": "Bande News",
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "files": [
+      "desktop/**/*",
+      "src/**/*",
+      "public/**/*",
+      "config.json",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "desktop/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "Bande News"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "desktop/icon.png",
+      "category": "public.app-category.news"
+    }
   }
 }

@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>باند نيوز — Bande News</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -106,11 +110,34 @@
     table.translate-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
     table.translate-table th { background: #f0f0f0; padding: 6px 8px; text-align: center; font-size: 0.8rem; }
     table.translate-table td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+    table.translate-table tr { cursor: grab; }
+    table.translate-table tr:active { cursor: grabbing; }
+    table.translate-table tr.drag-over { background: #e8f5e9; }
+    table.translate-table tr.row-selected { background: #c8e6c9; }
+    table.translate-table tr.row-selected td { background: transparent; }
     table.translate-table textarea {
       width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 5px;
       font-size: 0.82rem; resize: vertical; font-family: inherit;
     }
+    table.translate-table .drag-handle { color: #ccc; font-size: 1.1rem; text-align: center; width: 24px; }
+    table.translate-table .drag-handle:hover { color: #999; }
     .translate-toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .video-progress-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; background: #16213e;
+      border-top: 1px solid #0f3460; padding: 14px 20px; z-index: 400;
+      transform: translateY(100%); transition: transform 0.3s;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+    }
+    .video-progress-bar.active { transform: translateY(0); }
+    .video-progress-bar .vpb-inner { max-width: 1100px; margin: 0 auto; }
+    .video-progress-bar .vpb-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.85rem; color: #ccc; }
+    .video-progress-bar .vpb-label strong { color: #fff; font-size: 0.95rem; }
+    .video-progress-bar .vpb-track { height: 8px; background: #0f3460; border-radius: 4px; overflow: hidden; }
+    .video-progress-bar .vpb-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #e94560, #ff6b6b); border-radius: 4px; transition: width 0.4s ease; }
+    .video-progress-bar .vpb-actions { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
+    .video-progress-bar .vpb-actions a { color: #00d9ff; text-decoration: none; font-size: 0.85rem; }
+    .video-progress-bar .vpb-actions a:hover { text-decoration: underline; }
+
     .translate-progress { font-size: 0.85rem; color: var(--primary); font-weight: 600; }
 
     @media (max-width: 640px) {
@@ -171,11 +198,14 @@
         <button class="btn btn-blue" id="btnTranslateFR" onclick="autoTranslate('fr')">🇫🇷 ترجمة فرنسي</button>
         <button class="btn btn-orange" id="btnTranslateEN" onclick="autoTranslate('en')">🇬🇧 ترجمة إنجليزي</button>
         <span class="spacer"></span>
+        <button class="btn btn-sm btn-dark" onclick="moveSelectedRows(-1)">⬆️</button>
+        <button class="btn btn-sm btn-dark" onclick="moveSelectedRows(1)">⬇️</button>
         <span class="translate-progress" id="translateProgress"></span>
       </div>
       <div id="translateContent"></div>
-      <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+      <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="generateDocument()">📄 إنشاء الوثيقة</button>
+        <button class="btn btn-accent" id="btnGenerateVideo" onclick="generateVideo()">🎬 Générer la bande</button>
         <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('translateModal')">إغلاق</button>
       </div>
     </div>
@@ -198,6 +228,7 @@
         <p><strong>Étape 1 :</strong> Ouvrez une catégorie dans un nouvel onglet :</p>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;">
           <a href="https://www.mapnews.ma/ar/activites_royales" target="_blank" class="btn btn-sm btn-dark">Activités royales</a>
+          <a href="https://www.mapnews.ma/ar/activites_princieres" target="_blank" class="btn btn-sm btn-dark">Activités princières</a>
           <a href="https://www.mapnews.ma/ar/actualites/politique" target="_blank" class="btn btn-sm btn-dark">Politique</a>
           <a href="https://www.mapnews.ma/ar/actualites/social" target="_blank" class="btn btn-sm btn-dark">Société</a>
           <a href="https://www.mapnews.ma/ar/actualites/economie" target="_blank" class="btn btn-sm btn-dark">Économie</a>
@@ -207,6 +238,7 @@
       </div>
       <select id="localCatSelect" style="width:100%; padding:8px; margin-bottom:10px; font-size:0.9rem; border-radius:6px; border:1px solid #ccc;">
         <option value="activites_royales">Activités royales — الأنشطة الملكية</option>
+        <option value="activites_princieres">Activités princières — الأنشطة الأميرية</option>
         <option value="politique" selected>Politique — السياسة</option>
         <option value="social">Société — المجتمع</option>
         <option value="economie">Économie — الاقتصاد</option>
@@ -215,6 +247,21 @@
       <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
         <button class="btn btn-primary" onclick="parseLocalHtml()">🔍 تحليل — Analyser</button>
         <button class="btn btn-outline" style="color:#333;border-color:#ccc" onclick="closeModal('localModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="video-progress-bar" id="videoProgressBar">
+    <div class="vpb-inner">
+      <div class="vpb-label">
+        <span id="vpbMessage">Préparation...</span>
+        <strong id="vpbPercent">0%</strong>
+      </div>
+      <div class="vpb-track"><div class="vpb-fill" id="vpbFill"></div></div>
+      <div class="vpb-actions" id="vpbActions" style="display:none;">
+        <a id="vpbLink" href="#" target="_blank">📥 Télécharger la vidéo</a>
+        <span style="color:#888;font-size:0.8rem;">—</span>
+        <a href="#" onclick="document.getElementById('videoProgressBar').classList.remove('active');return false;" style="color:#888;font-size:0.8rem;">Fermer</a>
       </div>
     </div>
   </div>
@@ -334,14 +381,9 @@
       buildTabs();
     }
 
-    const CORS_PROXIES = [
-      (u) => `https://web.archive.org/web/${encodeURIComponent(u)}`,
-      (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-      (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-    ];
-
     const CATEGORIES = {
       activites_royales: { label: "أنشطة ملكية", label_fr: "Activités royales", url: "/ar/activites-royales" },
+      activites_princieres: { label: "أنشطة أميرية", label_fr: "Activités princières", url: "/ar/activites-princieres" },
       politique: { label: "سياسة", label_fr: "Politique", url: "/ar/actualites/politique" },
       social: { label: "مجتمع", label_fr: "Société", url: "/ar/actualites/social" },
       economie: { label: "إقتصاد", label_fr: "Économie", url: "/ar/actualites/economie" },
@@ -377,88 +419,39 @@ function parseSnrtCategoryPage(html, catKey) {
       const articles = [];
       const seen = new Set();
 
-      const dateBlocks = html.split(/(\d{2}\/\d{2}\/\d{4} - \d{2}:\d{2})/);
-
-      for (let i = 1; i < dateBlocks.length; i += 2) {
-        const timeStr = dateBlocks[i];
-        const contentBlock = dateBlocks[i + 1] || "";
-        const dp = timeStr.match(/(\d{2})\/(\d{2})\/(\d{4}) - (\d{2}:\d{2})/);
-        if (!dp) continue;
-        const date = `${dp[3]}-${dp[2]}T${dp[4]}:00`;
-
-        const text = contentBlock.replace(/<[^>]*>/g, "").replace(/ /g, " ").replace(/"/g, '"').replace(/&/g, "&").replace(/\s+/g, " ").trim();
-        const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
-
-        let title = "";
-        for (const line of lines) {
-          const clean = line.trim();
-          if (clean.length > 15 && clean.length < 250
-            && !clean.match(/^\d{2}\/\d{2}\/\d{4}/)
-            && !clean.match(/^\d{2}:\d{2}$/)
-            && !SNRT_CAT_MAP[clean]
-            && clean !== "آخر الأخبار"
-            && clean !== "مختصرات"
-            && clean !== "أخبار"
-            && clean !== "فيديوهات"
-            && clean !== "ملف الشهر"
-            && clean !== "الأكثرقراءة"
-            && clean !== "أخر الفيديوهات"
-            && clean !== "Pagination"
-            && clean !== "الصفحة"
-            && !clean.match(/^Current page/)
-            && !clean.match(/^Next page/)
-            && !clean.match(/^Last page/)
-          ) {
-            title = clean;
-            break;
-          }
-        }
-
-        const key = title.substring(0, 50);
-        if (title.length > 15 && !seen.has(key)) {
-          seen.add(key);
-          articles.push({ title, date, category: catKey });
-        }
+      // Parse flash news items
+      const flashRe = /<li class="flash-news"[^>]*>[\s\S]*?<div class="date-flashnews">(\d{2}:\d{2})<\/div>[\s\S]*?<h2>([^<]+)<\/h2>[\s\S]*?<h3[^>]*><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h3>[\s\S]*?<\/li>/g;
+      let m;
+      while ((m = flashRe.exec(html)) !== null) {
+        const title = decodeHtmlEntities(m[3]).replace(/\s+/g, " ").trim();
+        if (!title || title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+        articles.push({ title, date: m[1], category: catKey });
       }
 
-      return articles;
-    }
-        }
+      // Parse thematic section articles
+      const thematicRe = /<div class="holder-thematique-home"[^>]*>[\s\S]*?<div class="date_publication">(\d{2}\/\d{2}\/\d{4}) - (\d{2}:\d{2})<\/div>[\s\S]*?<div class="info_thematique_home">[\s\S]*?<h2><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h2>[\s\S]*?<\/div>/g;
+      while ((m = thematicRe.exec(html)) !== null) {
+        const title = decodeHtmlEntities(m[3]).replace(/\s+/g, " ").trim();
+        if (!title || title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+        articles.push({ title, date: m[1], category: catKey });
+      }
 
-        const text = contentBlock.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
-        const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-        let title = text;
-        for (const line of lines) {
-          if (line.length > 15
-            && !line.match(/^\d{2}\/\d{2}\/\d{4}/)
-            && !line.match(/^0?\d:\d{2}$/)
-            && !SNRT_CAT_MAP[line]
-            && line !== "آخر الأخبار"
-            && line !== "مختصرات"
-            && line !== "الأنشطة الملكية"
-            && line !== "الأنشطة الأميرية"
-            && line !== "أخبار"
-            && line !== "فيديوهات"
-            && line !== "ملف الشهر"
-            && line !== "الأكثرقراءة"
-            && line !== "أخر الفيديوهات"
-            && line.length < 200
-          ) {
-            title = line; break;
-          }
-        }
-
-        const key = title.substring(0, 40);
-        if (title.length > 15 && !seen.has(key)) {
-          seen.add(key);
-          articles.push({ title, date, category: cat });
+      // Parse main featured article
+      const mainRe = /<h1 class="news_title_une"><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h1>/;
+      const mainMatch = html.match(mainRe);
+      if (mainMatch) {
+        const title = decodeHtmlEntities(mainMatch[1]).replace(/\s+/g, " ").trim();
+        if (title && title.length >= 10 && !seen.has(title)) {
+          seen.add(title);
+          articles.unshift({ title, date: "", category: catKey });
         }
       }
 
       return articles;
     }
 
-    const BASE_URL = "https://www.mapnews.ma";
     const TITMIMA = "\u062A\u0640\u062A\u0640\u0645\u0640\u0629";
 
     function decodeHtmlEntities(str) {
@@ -513,23 +506,6 @@ function parseSnrtCategoryPage(html, catKey) {
       return catKey === "activites_royales" ? extractRoyales(html) : extractActualites(html);
     }
 
-    async function fetchViaCorsProxy(url, timeoutMs = 30000) {
-      for (const makeProxyUrl of CORS_PROXIES) {
-        try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), timeoutMs);
-          const res = await fetch(makeProxyUrl(url), { signal: controller.signal });
-          clearTimeout(timer);
-          if (!res.ok) continue;
-          const html = await res.text();
-          if (html.length > 1000 && !html.includes("Just a moment") && !html.includes("challenge-platform")) {
-            return html;
-          }
-        } catch {}
-      }
-      return null;
-    }
-
     let currentSource = "map";
 
     function switchSource() {
@@ -557,104 +533,68 @@ function parseSnrtCategoryPage(html, catKey) {
 
       try {
         if (currentSource === "snrt") {
-          const catKeys = Object.keys(SNRT_CATEGORIES);
-          btn.innerHTML = '<span class="spinner"></span> SNRTnews — جلب الأخبار...';
-          showToast("📡 SNRTnews: جاري الجلب...");
-
-          const snrtProxies = [
-            (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-            (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-          ];
-
-          for (const catKey of catKeys) {
-            const cat = SNRT_CATEGORIES[catKey];
-            const snrtUrl = `https://snrtnews.com${cat.url}`;
-            btn.innerHTML = `<span class="spinner"></span> SNRT — ${cat.label_fr} (${catKeys.indexOf(catKey) + 1}/${catKeys.length})...`;
-            showToast(`📡 SNRT: ${cat.label_fr}...`);
-
-            let catHtml = null;
-            for (const makeProxyUrl of snrtProxies) {
-              if (catHtml) break;
-              try {
-                const controller = new AbortController();
-                const timer = setTimeout(() => controller.abort(), 15000);
-                const res = await fetch(makeProxyUrl(snrtUrl), { signal: controller.signal });
-                clearTimeout(timer);
-                if (!res.ok) continue;
-                const html = await res.text();
-                if (html.length > 1000 && (html.includes("الأنشطة الملكية") || html.includes("سياسة") || html.includes("رياضة") || html.includes("مجتمع") || html.includes("اقتصاد") || html.includes("فن و ثقافة") || html.includes("عالم") || html.includes("تكنولوجيا") || html.includes("إفريقيا") || html.includes("الأنشطة الأميرية"))) {
-                  catHtml = html;
-                }
-              } catch {}
+          // Try server API first for SNRT
+          btn.innerHTML = '<span class="spinner"></span> SNRTnews — via serveur...';
+          showToast("📡 SNRTnews: جاري الجلب من الخادم...");
+          try {
+            const res = await fetch("/api/snrt/fetch?category=all&limit=20");
+            const data = await res.json();
+            if (data.success && data.total > 0) {
+              // Group articles by category
+              const grouped = {};
+              for (const a of data.articles) {
+                const key = a.category || "general";
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(a);
+              }
+              for (const catKey in SNRT_CATEGORIES) {
+                const cat = SNRT_CATEGORIES[catKey];
+                const arts = (grouped[catKey] || []).slice(0, 20).map((a, idx) => ({
+                  id: idx + 1, title: a.title, date: a.date, category: catKey,
+                  category_label: cat.label, category_label_fr: cat.label_fr,
+                }));
+                categories[catKey] = arts;
+              }
             }
-
-            if (!catHtml) {
-              categories[catKey] = [];
-            } else {
-              const articles = parseSnrtCategoryPage(catHtml, catKey);
-              categories[catKey] = articles.slice(0, 20).map((a, idx) => ({
-                id: idx + 1, title: a.title, date: a.date, category: catKey,
-                category_label: cat.label, category_label_fr: cat.label_fr,
-              }));
-            }
-
-            if (catKeys.indexOf(catKey) < catKeys.length - 1) {
-              await new Promise(r => setTimeout(r, 500));
-            }
+          } catch (err) {
+            errors.push({ category: "snrt", error: err.message });
           }
 
           const total = Object.values(categories).reduce((s, a) => s + a.length, 0);
           showToast(`✅ ${total} خبر من SNRTnews`);
         } else {
-          const catKeys = Object.keys(CATEGORIES);
-          for (let i = 0; i < catKeys.length; i++) {
-            const catKey = catKeys[i];
-            const cat = CATEGORIES[catKey];
-            btn.innerHTML = `<span class="spinner"></span> ${cat.label_fr} (${i + 1}/${catKeys.length})...`;
-
-            try {
-              const url = `${BASE_URL}${cat.url}`;
-              let html = await fetchViaCorsProxy(url);
-              let articles = html ? parseArticles(html, catKey) : [];
-
-              if (articles.length > 0 && articles.length < 20) {
-                const pageHtml = await fetchViaCorsProxy(`${url}?page=1`);
-                if (pageHtml) {
-                  const more = parseArticles(pageHtml, catKey);
-                  const seen = new Set(articles.map(a => a.title));
-                  for (const a of more) if (!seen.has(a.title)) { seen.add(a.title); articles.push(a); }
-                }
-              }
-
-              categories[catKey] = articles.slice(0, 20).map((a, idx) => ({
-                id: idx + 1, title: a.title, date: a.date, category: catKey,
-                category_label: cat.label, category_label_fr: cat.label_fr,
-              }));
-            } catch (err) {
-              errors.push({ category: catKey, error: err.message });
-              categories[catKey] = [];
-            }
-          }
-
-          if (Object.values(categories).every(a => a.length === 0)) {
+          // Try server API first (Wayback Machine fallback on server)
+          btn.innerHTML = '<span class="spinner"></span> MAP — via serveur...';
+          try {
             const res = await fetch("/api/fetch-all?limit=20");
             const data = await res.json();
-            if (data.success) categories = data.categories;
+            if (data.success) {
+              categories = data.categories;
+            }
+          } catch (err) {
+            errors.push({ category: "all", error: err.message });
           }
+
         }
 
-        categoriesData = categories;
-        for (const k in categories) {
+        const src = currentSource === "snrt" ? SNRT_CATEGORIES : CATEGORIES;
+        categoriesData = {};
+        for (const k in src) {
+          categoriesData[k] = categories[k] || [];
           selectedIds[k] = new Set();
-          const src = currentSource === "snrt" ? SNRT_CATEGORIES : CATEGORIES;
           categoryLabels[k] = categories[k]?.[0]?.category_label_fr || src[k]?.label_fr || k;
         }
+        const total = Object.values(categoriesData).reduce((s, a) => s + a.length, 0);
         activeTab = Object.keys(categoriesData).find(k => categoriesData[k]?.length) || Object.keys(categoriesData)[0] || null;
-        document.getElementById("emptyState").style.display = "none";
+        if (total === 0) {
+          document.getElementById("emptyState").style.display = "";
+          document.getElementById("emptyState").innerHTML = '<p>❌ Aucun article trouvé. Le site source a peut-être changé.</p><p>Essayez la source <strong>SNRTnews</strong> en haut à droite.</p>';
+        } else {
+          document.getElementById("emptyState").style.display = "none";
+        }
         buildTabs();
 
-        const total = Object.values(categories).reduce((s, a) => s + a.length, 0);
-        showToast(`✅ ${total} خبر من ${Object.keys(categories).length} rubriques`);
+        showToast(`✅ ${total} خبر من ${Object.keys(categoriesData).length} rubriques`);
         if (errors.length) showToast(`⚠️ ${errors.length} erreurs`);
       } catch (err) {
         showToast("❌ " + err.message);
@@ -702,10 +642,11 @@ function parseSnrtCategoryPage(html, catKey) {
       let rows = "";
       let idx = 0;
       for (const cat in grouped) {
-        rows += `<tr><td colspan="4" style="background:#1a5c2a;color:white;padding:8px;font-weight:bold;text-align:right;">${cat}</td></tr>`;
+        rows += `<tr><td colspan="5" style="background:#1a5c2a;color:white;padding:8px;font-weight:bold;text-align:right;">${cat}</td></tr>`;
         for (const a of grouped[cat]) {
           const dateStr = a.date ? a.date : "";
-          rows += `<tr>
+          rows += `<tr draggable="true" data-idx="${idx}">
+            <td class="drag-handle" title="Glisser pour réorganiser">☰</td>
             <td style="width:8%;text-align:center;font-size:0.75rem;color:#888;white-space:nowrap;">${dateStr}</td>
             <td style="width:31%;direction:rtl;"><textarea data-idx="${idx}" data-lang="ar" rows="2">${a.title}</textarea></td>
             <td style="width:31%;"><textarea data-idx="${idx}" data-lang="fr" rows="2" placeholder="Traduction..."></textarea></td>
@@ -717,10 +658,22 @@ function parseSnrtCategoryPage(html, catKey) {
 
       content.innerHTML = `
         <table class="translate-table">
-          <thead><tr><th style="width:8%;">📅</th><th style="text-align:right;width:31%;">🇲🇦 العربية</th><th style="width:31%;">🇫🇷 Français</th><th style="width:31%;">🇬🇧 English</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <thead><tr><th style="width:24px;"></th><th style="width:8%;">📅</th><th style="text-align:right;width:31%;">🇲🇦 العربية</th><th style="width:31%;">🇫🇷 Français</th><th style="width:31%;">🇬🇧 English</th></tr></thead>
+          <tbody id="translateBody">${rows}</tbody>
         </table>`;
+      initTranslateDragDrop();
       modal.classList.add("active");
+    }
+
+    function getTranslationsFromForm() {
+      const arts = [];
+      document.querySelectorAll('textarea[data-lang="ar"]').forEach(arEl => {
+        const idx = arEl.dataset.idx;
+        const frEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="fr"]`);
+        const enEl = document.querySelector(`textarea[data-idx="${idx}"][data-lang="en"]`);
+        arts.push({ ar: arEl.value.trim(), fr: frEl?.value.trim() || "", en: enEl?.value.trim() || "" });
+      });
+      return arts;
     }
 
     async function autoTranslate(targetLang) {
@@ -784,6 +737,96 @@ function parseSnrtCategoryPage(html, catKey) {
       btn.disabled = false;
       btn.innerHTML = targetLang === "fr" ? "🇫🇷 ترجمة فرنسي" : "🇬🇧 ترجمة إنجليزي";
       translating = false;
+    }
+
+    let draggedRow = null;
+
+    function initTranslateDragDrop() {
+      const tbody = document.getElementById("translateBody");
+      if (!tbody) return;
+      tbody.querySelectorAll("tr[data-idx]").forEach(row => {
+        row.addEventListener("click", function(e) {
+          if (e.target.tagName === "TEXTAREA" || e.target.tagName === "TD") return;
+          this.classList.toggle("row-selected");
+        });
+        row.addEventListener("dragstart", handleDragStart);
+        row.addEventListener("dragover", handleDragOver);
+        row.addEventListener("dragleave", handleDragLeave);
+        row.addEventListener("drop", handleDrop);
+        row.addEventListener("dragend", handleDragEnd);
+      });
+    }
+
+    function handleDragStart(e) {
+      draggedRow = this;
+      this.style.opacity = "0.5";
+      e.dataTransfer.effectAllowed = "move";
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (this !== draggedRow) this.classList.add("drag-over");
+    }
+
+    function handleDragLeave() {
+      this.classList.remove("drag-over");
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      if (this === draggedRow) return;
+      this.classList.remove("drag-over");
+      const tbody = document.getElementById("translateBody");
+      const rows = Array.from(tbody.querySelectorAll("tr[data-idx]"));
+      const draggedIdx = rows.indexOf(draggedRow);
+      const targetIdx = rows.indexOf(this);
+      if (draggedIdx < targetIdx) {
+        tbody.insertBefore(draggedRow, this.nextSibling);
+      } else {
+        tbody.insertBefore(draggedRow, this);
+      }
+      reorderIndices();
+    }
+
+    function handleDragEnd() {
+      this.style.opacity = "1";
+      document.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+      draggedRow = null;
+    }
+
+function reorderIndices() {
+      const tbody = document.getElementById("translateBody");
+      if (!tbody) return;
+      let globalIdx = 0;
+      tbody.querySelectorAll("tr[data-idx]").forEach(row => {
+        row.dataset.idx = globalIdx;
+        row.querySelectorAll("textarea").forEach(ta => {
+          ta.dataset.idx = globalIdx;
+        });
+        globalIdx++;
+      });
+    }
+
+    function moveSelectedRows(dir) {
+      const tbody = document.getElementById("translateBody");
+      if (!tbody) return;
+      const rows = Array.from(tbody.querySelectorAll("tr[data-idx]"));
+      const selected = rows.filter(r => r.classList.contains("row-selected"));
+      if (!selected.length) return;
+      selected.forEach(r => r.classList.remove("row-selected"));
+      const firstSelected = rows.indexOf(selected[0]);
+      const newIdx = firstSelected + dir;
+      if (newIdx < 0 || newIdx >= rows.length) return;
+      selected.forEach(r => {
+        r.classList.remove("row-selected");
+        if (dir > 0) {
+          tbody.insertBefore(r, rows[newIdx + 1] || null);
+        } else {
+          tbody.insertBefore(r, rows[newIdx]);
+        }
+      });
+      reorderIndices();
     }
 
     function getTranslationsFromForm() {
@@ -957,6 +1000,73 @@ function parseSnrtCategoryPage(html, catKey) {
     addEventListener("source", function(e) {
       showToast(`📡 Source: ${e.detail === "snrt" ? "SNRTnews" : "MAP (mapnews.ma)"}`);
     });
+
+    let videoPollTimer = null;
+
+    async function generateVideo() {
+      const arts = getTranslationsFromForm();
+      if (!arts.length) { showToast("❌ Aucun article à générer"); return; }
+
+      const bar = document.getElementById("videoProgressBar");
+      const fill = document.getElementById("vpbFill");
+      const msg = document.getElementById("vpbMessage");
+      const pct = document.getElementById("vpbPercent");
+      const actions = document.getElementById("vpbActions");
+
+      bar.classList.add("active");
+      fill.style.width = "0%";
+      msg.textContent = "Envoi des articles...";
+      pct.textContent = "0%";
+      actions.style.display = "none";
+
+      try {
+        const res = await fetch("/api/generate-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ articles: arts }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Échec du lancement");
+        pollVideoStatus();
+      } catch (e) {
+        showToast("❌ " + e.message);
+        bar.classList.remove("active");
+      }
+    }
+
+    async function pollVideoStatus() {
+      if (videoPollTimer) clearTimeout(videoPollTimer);
+      try {
+        const res = await fetch("/api/video-status?t=" + Date.now());
+        const s = await res.json();
+
+        const fill = document.getElementById("vpbFill");
+        const msg = document.getElementById("vpbMessage");
+        const pct = document.getElementById("vpbPercent");
+
+        fill.style.width = (s.percent || 0) + "%";
+        pct.textContent = (s.percent || 0) + "%";
+        msg.textContent = s.message || "...";
+
+        if (s.phase === "completed") {
+          showToast("✅ Vidéo générée");
+          const actions = document.getElementById("vpbActions");
+          const link = document.getElementById("vpbLink");
+          if (s.videoPath) {
+            link.href = "/videos/" + s.videoPath;
+          }
+          actions.style.display = "flex";
+          return;
+        }
+        if (s.phase === "error") {
+          showToast("❌ " + (s.message || "Erreur"));
+          return;
+        }
+        videoPollTimer = setTimeout(pollVideoStatus, 2000);
+      } catch {
+        videoPollTimer = setTimeout(pollVideoStatus, 3000);
+      }
+    }
 
     (async () => {
       try {

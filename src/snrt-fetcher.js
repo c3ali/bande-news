@@ -12,6 +12,19 @@ function decodeHtmlEntities(str) {
     .replace(/&apos;/gi, "'").replace(/&amp;#039;/gi, "'");
 }
 
+function formatDateTime(date, time) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${time}:00`;
+}
+
+function parseWaybackDate(url) {
+  const match = url.match(/\/web\/(\d{4})(\d{2})(\d{2})/);
+  if (match) {
+    return new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00`);
+  }
+  return new Date();
+}
+
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0",
@@ -31,17 +44,22 @@ const CATEGORY_MAP = {
   "إفريقيا": "afrique",
 };
 
-const CATEGORY_PATTERNS = Object.fromEntries(
-  Object.entries(CATEGORY_MAP).map(([ar, en]) => [en, new RegExp(ar, "i")])
-);
+const SNRT_CATEGORIES = {
+  activites_royales: "الأنشطة-الملكية",
+  activites_princieres: "الأنشطة-الأميرية",
+  politique: "سياسة",
+  sport: "رياضة",
+  social: "مجتمع",
+  economie: "اقتصاد",
+  culture: "فن-وثقافة",
+  monde: "عالم",
+  technologie: "تكنولوجيا",
+  afrique: "إفريقيا",
+};
 
-export async function fetchSnrtNews(targetCategory = "all", limit = 20) {
-  const url = "https://snrtnews.com";
+async function fetchSnrtPage(url) {
   const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 
-  console.log(`\n📡 SNRTnews — Récupération de la page...\n`);
-
-  let html = null;
   const methods = [
     async () => {
       const res = await fetch(url, {
@@ -49,7 +67,6 @@ export async function fetchSnrtNews(targetCategory = "all", limit = 20) {
           "User-Agent": ua,
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
           "Accept-Language": "ar,fr-FR,fr;q=0.9,en;q=0.7",
-          "Accept-Encoding": "gzip, deflate, br",
           "DNT": "1",
           "Connection": "keep-alive",
           "Upgrade-Insecure-Requests": "1",
@@ -62,105 +79,137 @@ export async function fetchSnrtNews(targetCategory = "all", limit = 20) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const t = await res.text();
       if (t.length < 500) throw new Error("Response too short");
-      return t;
+      return { html: t, source: "direct" };
     },
     async () => {
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
-      if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+      const waybackUrl = `https://web.archive.org/web/2026/${encodeURIComponent(url)}`;
+      const res = await fetch(waybackUrl, { signal: AbortSignal.timeout(30000) });
+      if (!res.ok) throw new Error(`Wayback HTTP ${res.status}`);
       const t = await res.text();
-      if (t.length < 500) throw new Error("Proxy response too short");
-      return t;
-    },
-    async () => {
-      const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`;
-      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
-      if (!res.ok) throw new Error(`CodeTabs HTTP ${res.status}`);
-      const t = await res.text();
-      if (t.length < 500) throw new Error("CodeTabs response too short");
-      return t;
+      if (t.length < 1000 || t.includes("Just a moment")) throw new Error("Wayback: no snapshot");
+      return { html: t, source: "wayback" };
     },
   ];
 
-  const errors = [];
   for (const method of methods) {
     try {
-      html = await method();
-      if (html && html.length > 500 && html.includes("آخر الأخبار")) break;
-      html = null;
-    } catch (e) {
-      errors.push(e.message);
-    }
+      const result = await method();
+      if (result.html && result.html.length > 500 && result.html.includes("آخر الأخبار")) return result;
+    } catch {}
   }
+  return null;
+}
 
-  if (!html) {
-    throw new Error(`All methods failed: ${errors.join(" | ")}`);
-  }
+function cleanWaybackHtml(html) {
+  // Remove Wayback URL prefixes like /web/20260204090223/https://snrtnews.com/
+  return html.replace(/\/web\/\d+(?:id_|cs_|)\//g, "");
+}
 
-  console.log(`✅ HTML récupéré (${html.length} caractères)\n`);
+function parseSnrtHtml(html, forcedCategory = null) {
   const articles = [];
   const seen = new Set();
 
-  const blocks = html.split(/(\d{2}\/\d{2}\/\d{4} - \d{2}:\d{2})/);
+  // Parse flash news items (only on home page, have time but no date)
+  const flashNewsRe = /<li class="flash-news"[^>]*>[\s\S]*?<div class="date-flashnews">(\d{2}:\d{2})<\/div>[\s\S]*?<h2>([^<]+)<\/h2>[\s\S]*?<h3[^>]*><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h3>[\s\S]*?<\/li>/g;
+  let m;
+  while ((m = flashNewsRe.exec(html)) !== null) {
+    const time = m[1];
+    const rawCat = m[2].trim();
+    const title = decodeHtmlEntities(m[3]).replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+    if (!title || title.length < 10 || seen.has(title)) continue;
+    seen.add(title);
+    const cat = forcedCategory || CATEGORY_MAP[rawCat] || "general";
+    articles.push({ title, date: formatDateTime(new Date(), time), category: cat, source: "SNRTnews" });
+  }
 
-  for (let i = 1; i < blocks.length; i += 2) {
-    const timeStr = blocks[i];
-    const contentBlock = blocks[i + 1] || "";
-
-    const dateParts = timeStr.match(/(\d{2})\/(\d{2})\/(\d{4}) - (\d{2}:\d{2})/);
-    if (!dateParts) continue;
-    const date = `${dateParts[3]}-${dateParts[2]}T${dateParts[4]}:00`;
-
-    const catMatch = contentBlock.match(/>([^<]{4,30})<\//);
-    let matchedCategory = "general";
-
-    if (targetCategory === "all") {
+  // Parse thematic section articles
+  const thematicRe = /<div class="holder-thematique-home"[^>]*>[\s\S]*?<div class="date_publication">(\d{2}\/\d{2}\/\d{4}) - (\d{2}:\d{2})<\/div>[\s\S]*?<div class="info_thematique_home">[\s\S]*?<h2><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h2>[\s\S]*?<\/div>/g;
+  while ((m = thematicRe.exec(html)) !== null) {
+    const day = m[1].split("/");
+    const time = m[2];
+    const title = decodeHtmlEntities(m[3]).replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+    if (!title || title.length < 10 || seen.has(title)) continue;
+    seen.add(title);
+    let cat = forcedCategory || "general";
+    if (!forcedCategory) {
+      const preContext = html.substring(Math.max(0, m.index - 500), m.index);
+      const catMatch = preContext.match(/<h2><a[^>]*href="[^"]*thematique\/([^"]+)"[^>]*>([^<]+)<\/a><\/h2>/);
       if (catMatch) {
-        const rawCat = catMatch[1].trim();
-        matchedCategory = CATEGORY_MAP[rawCat] || "general";
-      }
-    } else {
-      matchedCategory = targetCategory;
-    }
-
-    const lines = contentBlock.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-    let title = "";
-    for (const line of lines) {
-      const clean = line.replace(/<[^>]*>/g, "").trim();
-      if (clean.length > 15
-        && !clean.match(/^\d{2}\/\d{2}\/\d{4}/)
-        && clean !== "آخر الأخبار"
-        && clean !== "الأنشطة الملكية"
-        && clean !== "الأنشطة الأميرية"
-        && clean !== "أخبار"
-        && clean !== "مختصرات"
-        && !clean.match(/^(سياسة|رياضة|مجتمع|اقتصاد|فن و ثقافة|عالم|تكنولوجيا|إفريقيا)$/)
-      ) {
-        title = clean;
-        break;
+        cat = CATEGORY_MAP[catMatch[2].trim()] || "general";
       }
     }
+    articles.push({ title, date: `${day[2]}-${day[1]}-${day[0]}T${time}:00`, category: cat, source: "SNRTnews" });
+  }
 
-    if (title && !seen.has(title)) {
+  // Parse main featured article
+  const mainRe = /<h1 class="news_title_une"><a[^>]*href="[^"]*\/article\/\d+"[^>]*>([^<]+)<\/a><\/h1>/;
+  const mainMatch = html.match(mainRe);
+  if (mainMatch) {
+    const title = decodeHtmlEntities(mainMatch[1]).replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+    if (title && title.length >= 10 && !seen.has(title)) {
       seen.add(title);
-      articles.push({
-        title: decodeHtmlEntities(title.replace(/&nbsp;/g, " ")).replace(/\s+/g, " ").trim(),
-        date,
-        category: matchedCategory,
-        source: "SNRTnews"
-      });
+      let cat = forcedCategory || "general";
+      if (!forcedCategory) {
+        const catMatch2 = html.match(/<div class="last_news_info">[\s\S]*?<div class="field-content[^"]*"><h2>([^<]+)<\/h2>/);
+        if (catMatch2) cat = CATEGORY_MAP[catMatch2[1].trim()] || "general";
+      }
+      const dateMatch = html.match(/<div class="date_publication">(\d{2}\/\d{2}\/\d{4}) - (\d{2}:\d{2})<\/div>/);
+      const date = dateMatch ? `${dateMatch[1].split("/")[2]}-${dateMatch[1].split("/")[1]}-${dateMatch[1].split("/")[0]}T${dateMatch[2]}:00` : "";
+      articles.unshift({ title, date, category: cat, source: "SNRTnews" });
     }
   }
 
+  return articles;
+}
+
+export async function fetchSnrtNews(targetCategory = "all", limit = 20) {
+  const allArticles = [];
+
+  if (targetCategory !== "all") {
+    // Single category
+    const slug = SNRT_CATEGORIES[targetCategory];
+    if (!slug) throw new Error(`Unknown category: ${targetCategory}`);
+    const url = `https://snrtnews.com/thematique/${slug}`;
+    console.log(`\n📡 SNRTnews — Catégorie: ${targetCategory} → ${url}\n`);
+
+    const result = await fetchSnrtPage(url);
+    if (!result) throw new Error(`Failed to fetch ${url}`);
+
+    console.log(`✅ HTML récupéré via ${result.source} (${result.html.length} caractères)\n`);
+    const html = result.source === "wayback" ? cleanWaybackHtml(result.html) : result.html;
+    const articles = parseSnrtHtml(html, targetCategory);
+    allArticles.push(...articles);
+  } else {
+    // All categories — fetch home page only (contains flash news + thematic sections)
+    const url = "https://snrtnews.com";
+    console.log(`\n📡 SNRTnews — Page d'accueil → ${url}\n`);
+
+    const result = await fetchSnrtPage(url);
+    if (!result) throw new Error("Failed to fetch SNRT home page");
+
+    console.log(`✅ HTML récupéré via ${result.source} (${result.html.length} caractères)\n`);
+    const html = result.source === "wayback" ? cleanWaybackHtml(result.html) : result.html;
+    const articles = parseSnrtHtml(html);
+    allArticles.push(...articles);
+  }
+
+  // Deduplicate by title prefix
   const unique = [];
   const finalSeen = new Set();
-  for (const a of articles) {
-    const key = a.title.substring(0, 30);
+  for (const a of allArticles) {
+    const key = a.title.substring(0, 40);
     if (!finalSeen.has(key)) {
       finalSeen.add(key);
       unique.push(a);
     }
   }
+
+  // Sort by date descending (most recent first)
+  unique.sort((a, b) => {
+    const da = a.date ? new Date(a.date) : new Date(0);
+    const db = b.date ? new Date(b.date) : new Date(0);
+    return db - da;
+  });
 
   const result = unique.slice(0, limit).map((a, i) => ({
     id: i + 1,

@@ -1,18 +1,26 @@
 import express from "express";
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { spawn } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = process.env.PORT || 3000;
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "gemma4:e2b";
+const PORT = process.env.PORT || 3002;
+const NANO_GPT_KEY = process.env.NANO_GPT_KEY || "sk-nano-a9dfba3d-d1ab-4ce3-9e47-c7d7840d8894";
+const NANO_GPT_MODEL = process.env.NANO_GPT_MODEL || "google/gemma-4-31b-it";
 const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY || "";
 const CACHE = new Map();
 
 app.use(express.json({ limit: "5mb" }));
-app.use(express.static(resolve(__dirname, "../public")));
+app.use(express.static(resolve(__dirname, "../public"), {
+  setHeaders: (res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
+}));
+app.use("/videos", express.static(resolve(__dirname, "../bande-news-video/videos")));
 
 import { fetchSnrtNews } from "./snrt-fetcher.js";
 
@@ -54,63 +62,33 @@ function decodeHtmlEntities(str) {
 
 const TITMIMA = "\u062A\u0640\u062A\u0640\u0645\u0640\u0629";
 
-function extractArticlesFromActualites(html) {
-  const articles = [];
-  const seen = new Set();
-  const blocks = html.split(/<div class="block-1">/);
-
-  for (const block of blocks) {
-    const titleMatch = block.match(/<span class="field-content"><a href="\/ar\/actualites\/[^"]+">([^<]+)<\/a><\/span>/);
-    if (!titleMatch) continue;
-    const title = decodeHtmlEntities(titleMatch[1]).replace(/\s+/g, " ").trim();
-    if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
-    seen.add(title);
-
-    const dateMatch = block.match(/<div class="field-content date-actualites">([^<]+)<\/div>/);
-    const date = dateMatch ? dateMatch[1].trim() : "";
-
-    articles.push({ title, date });
-  }
-  return articles;
-}
-
-function extractArticlesFromRoyales(html) {
+function extractArticlesFromHtml(html, catKey) {
   const articles = [];
   const seen = new Set();
 
-  const rows = html.split(/<div class="element_over_hidden views-row/);
-  for (const row of rows) {
-    const titleMatch = row.match(/page_second_title[^>]*><a href="\/ar\/activites-royales\/[^"]+">([^<]+)<\/a>/);
+  // The new mapnews.ma uses <article> tags with <h2>/<h3> for titles and <time> for dates
+  const articleRe = /<article[^>]*>([\s\S]*?)<\/article>/gi;
+  let m;
+
+  while ((m = articleRe.exec(html)) !== null) {
+    const articleHtml = m[1];
+
+    // Try h2 first, then h3 for title
+    const titleMatch = articleHtml.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i) || articleHtml.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
     if (!titleMatch) continue;
-    const title = decodeHtmlEntities(titleMatch[1]).replace(/\s+/g, " ").trim();
+
+    let title = decodeHtmlEntities(titleMatch[1]).replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
     if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
     seen.add(title);
 
-    const dateMatch = row.match(/<div class="field-content node-date">([^<]+)<\/div>/);
-    const date = dateMatch ? dateMatch[1].trim() : "";
+    // Try to find date in <time> tag
+    const dateMatch = articleHtml.match(/<time[^>]*>([\s\S]*?)<\/time>/i);
+    const date = dateMatch ? decodeHtmlEntities(dateMatch[1]).replace(/<[^>]*>/g, "").trim() : "";
 
     articles.push({ title, date });
   }
 
-  if (articles.length < 3) {
-    const re = /<span class="field-content page_(?:first|second)_title"><a href="\/ar\/activites-royales\/[^"]+">([^<]+)<\/a><\/span>/gi;
-    let m;
-    while ((m = re.exec(html)) !== null) {
-      const title = decodeHtmlEntities(m[1]).replace(/\s+/g, " ").trim();
-      if (title.length < 10 || title === TITMIMA || seen.has(title)) continue;
-      seen.add(title);
-      articles.push({ title, date: "" });
-    }
-  }
-
   return articles;
-}
-
-function parseArticlesFromHtml(html, catKey) {
-  if (catKey === "activites_royales") {
-    return extractArticlesFromRoyales(html);
-  }
-  return extractArticlesFromActualites(html);
 }
 
 function getRequestHeaders() {
@@ -160,6 +138,17 @@ async function fetchViaProxy(url) {
   throw new Error("All proxies failed");
 }
 
+async function fetchViaWayback(url) {
+  const waybackUrl = `https://web.archive.org/web/2025/${encodeURIComponent(url)}`;
+  const res = await fetchWithTimeout(waybackUrl, {}, 30000);
+  if (!res.ok) throw new Error(`Wayback HTTP ${res.status}`);
+  const html = await res.text();
+  if (html.length < 1000 || html.includes("Just a moment") || html.includes("challenge-platform")) {
+    throw new Error("Wayback: no snapshot or Cloudflare");
+  }
+  return html;
+}
+
 async function fetchViaFlareSolverr(url) {
   const res = await fetchWithTimeout(`${FLARESOLVERR_URL}/v1`, {
     method: "POST",
@@ -205,7 +194,80 @@ async function fetchPageHtml(url, headers) {
     return await fetchViaProxy(url);
   } catch (e) { errors.push(`proxy: ${e.message}`); }
 
+  try {
+    return await fetchViaWayback(url);
+  } catch (e) { errors.push(`wayback: ${e.message}`); }
+
   throw new Error(`All methods failed: ${errors.join(" | ")}`);
+}
+
+function parseRssDate(pubDate) {
+  if (!pubDate) return "";
+  try {
+    const d = new Date(pubDate);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch { return ""; }
+}
+
+function stripHtmlEntities(str) {
+  return str
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&amp;/g, "&")
+    .replace(/&#039;/g, "'").replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function fetchRssArticles(catKey, limit = 20) {
+  const cat = config.categories[catKey];
+  if (!cat || !cat.rss_path) throw new Error(`No RSS for category: ${catKey}`);
+
+  const articles = [];
+  const seen = new Set();
+
+  // RSS pages are 0-indexed, each page has ~9-10 items
+  for (let page = 0; page < 3; page++) {
+    if (articles.length >= limit) break;
+
+    const rssUrl = `${config.base_url}${cat.rss_path}${page > 0 ? `?page=${page}` : ""}`;
+    try {
+      const res = await fetchWithTimeout(rssUrl, { headers: getRequestHeaders() }, 15000);
+      if (!res.ok) break;
+      const xml = await res.text();
+
+      // Parse RSS items
+      const itemRe = /<item>[\s\S]*?<\/item>/g;
+      let m;
+      while ((m = itemRe.exec(xml)) !== null) {
+        const item = m[0];
+        const titleMatch = item.match(/<title>([^<]+)<\/title>/);
+        const dateMatch = item.match(/<pubDate>([^<]+)<\/pubDate>/);
+        if (!titleMatch) continue;
+
+        let title = stripHtmlEntities(titleMatch[1]);
+        if (!title || title.length < 10 || seen.has(title)) continue;
+        seen.add(title);
+
+        const date = parseRssDate(dateMatch ? dateMatch[1] : "");
+        articles.push({ title, date });
+        if (articles.length >= limit) break;
+      }
+    } catch {
+      break;
+    }
+  }
+
+  return articles.map((a, i) => ({
+    id: i + 1,
+    title: a.title,
+    date: a.date,
+    category: catKey,
+    category_label: cat.label,
+    category_label_fr: cat.label_fr,
+  }));
 }
 
 async function fetchCategoryArticles(catKey, limit = 20) {
@@ -222,7 +284,7 @@ async function fetchCategoryArticles(catKey, limit = 20) {
 
   const html = await fetchPageHtml(url, headers);
 
-  let articles = parseArticlesFromHtml(html, catKey);
+  let articles = extractArticlesFromHtml(html, catKey);
 
   if (articles.length < limit) {
     const pages = [1, 2, 3, 4];
@@ -232,7 +294,7 @@ async function fetchCategoryArticles(catKey, limit = 20) {
       try {
         const pageUrl = `${url}?page=${page}`;
         const pageHtml = await fetchPageHtml(pageUrl, headers);
-        const pageArticles = parseArticlesFromHtml(pageHtml, catKey);
+        const pageArticles = extractArticlesFromHtml(pageHtml, catKey);
         if (pageArticles.length === 0) break;
         articles = articles.concat(pageArticles);
       } catch { break; }
@@ -259,33 +321,73 @@ async function fetchCategoryArticles(catKey, limit = 20) {
   return result;
 }
 
-async function ollamaTranslate(texts, targetLang) {
+async function tryTranslateWithCredits(texts, targetLang) {
   const langName = targetLang === "fr" ? "French" : "English";
   const numbered = texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
-  const prompt = `Translate each of the following Arabic news headlines to ${langName}. Keep the numbering. Output ONLY the translations, one per line, numbered. Do not add any explanation.
+  const abbrevRule = targetLang === "fr"
+    ? 'Never spell out "Sa Majesté": always use the abbreviation "SM" (e.g. "SM le Roi Mohammed VI").'
+    : 'Never spell out "His Majesty": always use the abbreviation "HM" (e.g. "HM King Mohammed VI").';
+  const prompt = `Translate each of the following Arabic news headlines to ${langName}. Keep the numbering. Output ONLY the translations, one per line, numbered. Do not add any explanation. ${abbrevRule}
 
 ${numbered}`;
 
-  const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+  const res = await fetch("https://nano-gpt.com/api/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${NANO_GPT_KEY}`,
+      "X-Billing-Mode": "paygo",
+    },
     body: JSON.stringify({
-      model: OLLAMA_MODEL,
+      model: NANO_GPT_MODEL,
       messages: [{ role: "user", content: prompt }],
-      stream: false,
-      options: { temperature: 0.1 },
+      temperature: 0.1,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`NanoGPT paygo failed ${res.status}: ${errText}`);
+  }
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content || "";
+  return content.split("\n").map(l => l.replace(/^\d+[\.\)\-]\s*/, "").replace(/\.+$/, "").trim()).filter(l => l.length > 0);
+}
+
+async function nanoGptTranslate(texts, targetLang) {
+  const langName = targetLang === "fr" ? "French" : "English";
+  const numbered = texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
+  const abbrevRule = targetLang === "fr"
+    ? 'Never spell out "Sa Majesté": always use the abbreviation "SM" (e.g. "SM le Roi Mohammed VI").'
+    : 'Never spell out "His Majesty": always use the abbreviation "HM" (e.g. "HM King Mohammed VI").';
+  const prompt = `Translate each of the following Arabic news headlines to ${langName}. Keep the numbering. Output ONLY the translations, one per line, numbered. Do not add any explanation. ${abbrevRule}
+
+${numbered}`;
+
+  const res = await fetch("https://nano-gpt.com/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${NANO_GPT_KEY}`,
+    },
+    body: JSON.stringify({
+      model: NANO_GPT_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.1,
     }),
   });
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Ollama error ${res.status}: ${errText}`);
+    if (res.status === 429 && (errText.includes("limit") || errText.includes("quota") || errText.includes("subscription"))) {
+      return tryTranslateWithCredits(texts, targetLang);
+    }
+    throw new Error(`NanoGPT error ${res.status}: ${errText}`);
   }
 
   const data = await res.json();
-  const content = data.message?.content || "";
+  const content = data.choices?.[0]?.message?.content || "";
   const translations = [];
-  const lines = content.split("\n").map(l => l.replace(/^\d+[\.\)\-]\s*/, "").trim()).filter(l => l.length > 0);
+  const lines = content.split("\n").map(l => l.replace(/^\d+[\.\)\-]\s*/, "").replace(/\.+$/, "").trim()).filter(l => l.length > 0);
 
   for (let i = 0; i < texts.length; i++) {
     translations.push(lines[i] || "");
@@ -342,7 +444,7 @@ app.post("/api/translate", async (req, res) => {
       return res.status(400).json({ success: false, error: "texts array required" });
     }
     const lang = target_lang === "en" ? "en" : "fr";
-    const translations = await ollamaTranslate(texts, lang);
+    const translations = await nanoGptTranslate(texts, lang);
     res.json({ success: true, target_lang: lang, translations });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -453,7 +555,9 @@ app.get("/api/snrt/categories", (req, res) => {
 app.get("/api/snrt/fetch", async (req, res) => {
   try {
     const category = req.query.category || "all";
-    const limit = parseInt(req.query.limit) || config.default_limit || 20;
+    let limit = parseInt(req.query.limit) || config.default_limit || 20;
+    // When fetching all categories, we need more articles to fill each category
+    if (category === "all") limit = limit * 10;
     const articles = await fetchSnrtNews(category, limit);
     res.json({ success: true, source: "SNRTnews", category, total: articles.length, articles });
   } catch (err) {
@@ -479,6 +583,56 @@ app.get("/api/debug", async (req, res) => {
   } catch (e) { results.direct = { error: e.message }; }
 
   res.json({ success: true, env: { SCRAPER_API_KEY: SCRAPER_API_KEY ? "configured" : "missing", NODE_VERSION: process.version }, results });
+});
+
+const HF_DIR = resolve(__dirname, "../bande-news-video");
+const VIDEO_OUTPUT_DIR = resolve(HF_DIR, "videos");
+const STATUS_FILE = resolve(HF_DIR, "render-status.json");
+
+app.get("/api/video-status", (req, res) => {
+  res.header("Cache-Control", "no-cache");
+  if (!existsSync(STATUS_FILE)) return res.json({ phase: "idle", percent: 0, message: "Aucune génération en cours" });
+  try {
+    const data = JSON.parse(readFileSync(STATUS_FILE, "utf-8"));
+    res.json(data);
+  } catch {
+    res.json({ phase: "idle", percent: 0, message: "Statut indisponible" });
+  }
+});
+
+app.get("/api/videos", (req, res) => {
+  if (!existsSync(VIDEO_OUTPUT_DIR)) return res.json({ success: true, videos: [] });
+  const videos = readdirSync(VIDEO_OUTPUT_DIR)
+    .filter(f => f.endsWith(".mp4"))
+    .map(f => {
+      const s = readFileSync(resolve(VIDEO_OUTPUT_DIR, f));
+      return { name: f, size: s.length, path: `/videos/${f}` };
+    })
+    .sort((a, b) => b.name.localeCompare(a.name));
+  res.json({ success: true, videos });
+});
+
+app.post("/api/generate-video", (req, res) => {
+  // Reset status
+  writeFileSync(STATUS_FILE, JSON.stringify({ phase: "starting", percent: 0, message: "Démarrage...", ts: Date.now() }), "utf-8");
+
+  // If articles are provided, save them for the generator to pick up
+  const selectedFile = resolve(HF_DIR, "selected-articles.json");
+  if (req.body && req.body.articles && Array.isArray(req.body.articles)) {
+    writeFileSync(selectedFile, JSON.stringify({ articles: req.body.articles, ts: Date.now() }, null, 2), "utf-8");
+  } else if (existsSync(selectedFile)) {
+    // clean up stale file
+    try { unlinkSync(selectedFile); } catch {}
+  }
+
+  const child = spawn(process.execPath, [resolve(__dirname, "generate-video.js")], {
+    detached: true, stdio: "ignore", windowsHide: true
+    // Dans l'app desktop (Electron), on relance le generateur en pur Node
+    ...(process.versions.electron ? { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } } : {})
+  });
+  child.unref();
+
+  res.json({ success: true, pid: child.pid, message: "Génération lancée en arrière-plan" });
 });
 
 app.listen(PORT, "0.0.0.0", () => {

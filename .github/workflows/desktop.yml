@@ -1,0 +1,40 @@
+name: Build Desktop App
+
+# Construit l'application desktop (Electron) :
+#  - Windows : installeur NSIS (.exe) + .exe portable
+#  - macOS   : fichiers .dmg (Intel x64 + Apple Silicon arm64)
+on:
+  workflow_dispatch:      # lancement manuel depuis l'onglet Actions
+  push:
+    tags:
+      - "v*"              # ou automatiquement sur un tag de version
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Installer les dependances
+        run: npm ci
+
+      - name: Build desktop (${{ matrix.os }})
+        run: npx electron-builder --${{ matrix.os == 'windows-latest' && 'win' || 'mac' }} --publish never
+
+      - name: Uploader les artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bande-news-desktop-${{ matrix.os }}
+          path: |
+            dist-desktop/*.exe
+            dist-desktop/*.dmg
+          if-no-files-found: error

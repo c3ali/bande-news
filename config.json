@@ -8,40 +8,46 @@
       "label": "أنشطة ملكية",
       "label_fr": "Activités royales",
       "url": "/ar/activites_royales",
-      "rss_path": "/ar/rss"
+      "rss_path": null
+    },
+    "activites_princieres": {
+      "label": "أنشطة أميرية",
+      "label_fr": "Activités princières",
+      "url": "/ar/activites_princieres",
+      "rss_path": null
     },
     "politique": {
       "label": "سياسة",
       "label_fr": "Politique",
       "url": "/ar/actualites/politique",
-      "rss_path": "/ar/rss"
+      "rss_path": "/ar/actualites/politique/rss"
     },
     "social": {
       "label": "مجتمع",
       "label_fr": "Société",
       "url": "/ar/actualites/social",
-      "rss_path": "/ar/rss"
+      "rss_path": "/ar/actualites/social/rss"
     },
     "economie": {
       "label": "إقتصاد",
       "label_fr": "Économie",
       "url": "/ar/actualites/economie",
-      "rss_path": "/ar/rss"
+      "rss_path": "/ar/actualites/economie/rss"
     }
   },
   "default_limit": 20,
   "output_dir": "./output",
   "separator": "§",
   "video": {
-    "items_per_category": 5,
+    "items_per_category": 4,
     "categories_order": ["activites_royales", "politique", "social", "economie"],
     "output_dir": "./bande-news-video/videos",
     "ticker": {
       "band_height": 140,
       "font_size": 42,
-      "separator": "    ●    ",
-      "pixels_per_second": 40,
-      "gap_between_languages": 5
+      "separator": "        ●        ",
+      "pixels_per_second": 120,
+      "gap_between_languages": 1
     }
   }
 }
